@@ -28,7 +28,10 @@ export async function verifySupabaseUser(accessToken: string): Promise<Authorize
   const metadata = obj.app_metadata && typeof obj.app_metadata === 'object'
     ? obj.app_metadata as Record<string, unknown>
     : {};
-  const role = metadata.dashboard_tools_role;
-  if (role !== 'administrador' && role !== 'gestor') return null;
+  const dashboardRole = metadata.dashboard_role;
+  const role: AuthorizedUser['role'] | null = dashboardRole === 'admin'
+    ? 'administrador'
+    : dashboardRole === 'manager' ? 'gestor' : null;
+  if (!role) return null;
   return { id: obj.id, email: typeof obj.email === 'string' ? obj.email : null, role };
 }

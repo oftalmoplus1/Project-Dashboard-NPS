@@ -1,30 +1,39 @@
-# Integração Supabase Auth — preparação (não ativada)
+# Autenticação mínima — incremento de login
 
-Esta etapa adiciona apenas utilitários de validação de configuração e verificação
-de identidade no servidor. Não cria usuários, não altera políticas RLS,
-não modifica tabelas, não consulta telefonia e não ativa rotas públicas.
+Implementado no código da branch de desenvolvimento:
+- Login via POST servidor para `/auth/v1/token?grant_type=password` no Supabase self-hosted.
+- Validação de identidade via `/auth/v1/user` e autorização por `app_metadata.dashboard_role`.
+- Valores aceitos: `admin` (administrador) e `manager` (gestor).
+- Cookie de acesso `HttpOnly`, `SameSite=Lax`, `Secure` em produção.
+- Proteção no servidor de `/[section]`; redirecionamento de visitantes para `/login`.
+- Logout local que apaga o cookie.
 
-## Regras de segurança
+## Configuração local
+Criar `.env.local` apenas na máquina de desenvolvimento (ignorado pelo Git):
 
-- A fonte é o Supabase self-hosted autorizado, não outro projeto conectado.
-- O token deve ser validado com o endpoint Auth `/auth/v1/user`.
-- A autorização requer `app_metadata.dashboard_tools_role` igual a
-  `administrador` ou `gestor`; `user_metadata` não é confiável.
-- A existência desse metadado e o provisionamento de usuários **não foram verificados**.
-- A aplicação ainda não tem fluxo de login ou cookie de sessão.
-- Nenhuma rota de dados reais pode ser ativada sem autenticação e autorização
-  aplicadas no servidor e sem testes de acesso negado.
-- Nunca enviar service_role, credenciais de banco, números telefônicos ou
-  registros individuais ao cliente.
+```dotenv
+SUPABASE_URL=https://supabase.oftalmoplus.com.br
+SUPABASE_PUBLISHABLE_KEY=<chave-publicavel-ou-anon-do-self-hosted>
+```
 
-## Pendências antes da ativação
+Não usar `service_role` nem chave secreta. Não compartilhar chaves no chat.
+O hostname precisa apontar ao serviço Supabase self-hosted correto.
 
-1. Confirmar a disponibilidade e o modo de provisionamento de usuários no Auth
-   self-hosted, sem executar operações administrativas nesta etapa.
-2. Definir como os perfis serão atribuídos com segurança no lado administrativo.
-3. Implementar login, renovação e logout de sessão com armazenamento seguro.
-4. Implementar consulta agregada somente leitura com escopo temporal validado.
-5. Verificar bloqueio de usuários não autenticados, sem perfil e com sessão inválida.
-6. Validar typecheck, lint e build localmente.
+## Limitações e validações pendentes
+- A sessão **não é renovada automaticamente**. Ao expirar o access token,
+  é necessário entrar novamente. Isto evita armazenar refresh token antes
+  de especificar renovação e revogação adequadas.
+- O logout remove o cookie local; não revoga tokens já emitidos no Auth.
+- Não há controle de tentativas de login próprio; depende dos limites do Auth.
+- O dashboard de chamadas **continua simulado**. Nenhuma rota de telefonia real foi criada.
+- A UI de outras seções permanece demonstrativa e protegida pelo mesmo login.
+- O nome exibido na interface ainda é 'Administrador demo' e deve ser
+  substituído em um incremento posterior.
+- É necessário validar `npm run typecheck`, `npm run lint`, `npm run build`
+  e testes manuais com conta autorizada, senha errada e sessão ausente.
+- Se `SUPABASE_PUBLISHABLE_KEY` for uma chave nova incompatível com a
+  versão self-hosted, usar a chave pública `anon` existente, nunca `service_role`.
+- Antes de dados reais, confirmar permissões de leitura e RLS da fonte,
+  além de proteger o endpoint agregado no servidor.
 
-As regras avançadas de administração e sessões continuam adiadas.
+Nenhuma tabela, política, infraestrutura ou usuário foi alterado por este incremento.

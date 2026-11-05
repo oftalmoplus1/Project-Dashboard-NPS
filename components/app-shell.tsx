@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronDown, CircleHelp, Menu, Moon, Sun, X, ShieldCheck } from 'lucide-react';
 import { sections, sectionDescriptions, type Section } from '@/lib/navigation';
 import SectionContent from './section-content';
+import LogoutButton from './logout-button';
 
 export default function AppShell({section}:{section:Section}){
  const pathname=usePathname();
@@ -26,7 +27,7 @@ export default function AppShell({section}:{section:Section}){
    </nav>
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span>Ambiente visual de demonstração<br/><small>Sem conexão com dados reais</small></span></div><div className="account"><div className="avatar">AD</div><div><strong>Administrador demo</strong><small>Perfil ilustrativo</small></div><ChevronDown size={16}/></div></div>
   </aside>
-  <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{active.label}</strong></div><div className="top-actions"><span className="demo-pill">Protótipo · Fase 1</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span></div></header>
+  <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{active.label}</strong></div><div className="top-actions"><span className="demo-pill">Protótipo · Fase 1</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
    <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> VISÃO CORPORATIVA</div><h1>{active.label}</h1><p>{sectionDescriptions[section]}</p></div><div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div></div>
    <SectionContent section={section} query={query} setQuery={setQuery}/>
    <footer className="footer"><span>dashboard_tools · Identidade visual v4.60</span><span>Fase 1 — Estrutura e interface · Sem dados reais</span></footer>

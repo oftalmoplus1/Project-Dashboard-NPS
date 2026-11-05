@@ -1,5 +1,5 @@
-import CallDashboard from './call-dashboard';
 'use client';
+import CallDashboard from './call-dashboard';
 import { Activity, BarChart3, CheckCircle2, Clock3, Database, Layers3, MoreHorizontal, Plus, Search, ShieldCheck, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import type { Section } from '@/lib/navigation';
 

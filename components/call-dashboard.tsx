@@ -94,21 +94,24 @@ export default function CallDashboard() {
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>{categories.map(c => <span key={c.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}><span style={{ width: 11, height: 11, borderRadius: 2, background: c.color }}/>{c.label}</span>)}</div>
     {valid.summary.total === 0 ? <p>Nenhuma chamada no período selecionado.</p> : <>
      <div tabIndex={0} aria-label="Gráfico de chamadas recebidas, navegação horizontal disponível" style={{ overflowX: 'auto', padding: '16px 4px 12px', scrollBehavior: 'smooth' }}>
-      <div style={{ display: 'flex', alignItems: 'end', gap: 12, minWidth: '100%', width: 'max-content', height: 255, borderBottom: '1px solid var(--border, #aaa)' }}>
+      <div style={{ display: 'flex', alignItems: 'end', gap: valid.range.start === valid.range.end ? 0 : 12, minWidth: '100%', width: 'max-content', height: 255, borderBottom: '1px solid var(--border, #aaa)' }}>
        {valid.buckets.map(bucket => {
         const selected = activeBucket?.key === bucket.key;
         const known = bucket.answered + bucket.unanswered + bucket.abandoned;
-        return <button key={bucket.key} type="button" onClick={() => setSelectedBucket(selected ? null : bucket.key)} aria-pressed={selected} aria-label={`${bucket.label}: ${bucket.answered} atendidas, ${bucket.unanswered} sem atendimento, ${bucket.abandoned} abandonadas, ${bucket.other} outros. Total ${bucket.total}.`} title={`${bucket.label} · ${bucket.total} registros`} style={{ width: 44, display: 'flex', flexDirection: 'column', justifyContent: 'end', alignItems: 'center', height: '100%', flexShrink: 0, border: 0, background: selected ? 'rgba(37,139,120,.10)' : 'transparent', borderRadius: 10, padding: '0 3px', cursor: 'pointer', outlineOffset: 3, transition: 'background .2s ease, transform .2s ease', transform: selected ? 'translateY(-3px)' : undefined }}>
+        return <button key={bucket.key} type="button" onClick={() => setSelectedBucket(selected ? null : bucket.key)} aria-pressed={selected} aria-label={`${bucket.label}: ${bucket.answered} atendidas, ${bucket.unanswered} sem atendimento, ${bucket.abandoned} abandonadas, ${bucket.other} outros. Total ${bucket.total}.`} title={`${bucket.label} · ${bucket.total} registros`} style={{ width: valid.range.start === valid.range.end ? 52 : 44, display: 'flex', flexDirection: 'column', justifyContent: 'end', alignItems: 'center', height: '100%', flexShrink: 0, border: 0, background: selected ? 'rgba(37,139,120,.10)' : 'transparent', borderRadius: 4, padding: '0 3px', cursor: 'pointer', outlineOffset: 3, transition: 'background .2s ease, transform .2s ease', transform: selected ? 'translateY(-3px)' : undefined }}>
          <span style={{ fontSize: 11, fontWeight: selected ? 700 : 500, opacity: known ? 1 : .5, marginBottom: 6 }}>{known ? number(known) : '·'}</span>
          <span style={{ width: 30, height: 196, display: 'flex', flexDirection: 'column', justifyContent: 'end' }}>
-          <span style={{ width: '100%', display: 'flex', flexDirection: 'column-reverse', height: (known / max * 188) + 'px', overflow: 'hidden', borderRadius: '8px 8px 3px 3px', boxShadow: selected ? '0 0 0 2px rgba(37,139,120,.35)' : '0 2px 8px rgba(0,0,0,.09)', transition: 'height .35s ease, box-shadow .2s ease' }}>
+          <span style={{ width: '100%', display: 'flex', flexDirection: 'column-reverse', height: (known / max * 188) + 'px', overflow: 'hidden', borderRadius: '3px 3px 1px 1px', boxShadow: selected ? '0 0 0 2px rgba(37,139,120,.35)' : '0 2px 8px rgba(0,0,0,.09)', transition: 'height .35s ease, box-shadow .2s ease' }}>
            {categories.map(c => <span key={c.key} style={{ height: known ? (bucket[c.key] / known * 100) + '%' : 0, background: c.color, transition: 'height .35s ease' }}/>)}
           </span>
          </span>
-         <span style={{ fontSize: 10, height: 32, paddingTop: 8, whiteSpace: 'nowrap', fontWeight: selected ? 700 : 400 }}>{bucket.label}</span>
+         <span style={{ fontSize: 10, height: 32, paddingTop: 8, whiteSpace: 'nowrap', fontWeight: selected ? 700 : 400 }}>{valid.range.start === valid.range.end ? '' : bucket.label}</span>
         </button>;
        })}
       </div>
+      {valid.range.start === valid.range.end && <div aria-label="Escala horária de 0h a 23h, com marcações de uma em uma hora" style={{ display: 'flex', width: 624, minWidth: 624, marginTop: 4 }}>
+       {Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ width: 26, flexShrink: 0, fontSize: 10, textAlign: 'center', whiteSpace: 'nowrap', opacity: .8 }}>{hour}h</span>)}
+      </div>}
      </div>
      <p style={{ fontSize: 12, opacity: .7, marginTop: 6 }}>Selecione uma coluna para ver seus detalhes. Use a rolagem horizontal para acessar todos os intervalos.</p>
      {activeBucket && <div role="status" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 12, padding: 14, border: '1px solid var(--border, #ddd)', borderRadius: 12, background: 'var(--surface, transparent)' }}>

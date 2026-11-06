@@ -71,7 +71,7 @@ export default function CallDashboard() {
  }, [rangeKey, range?.granularity, snapshot]);
  const valid = data;
  const validation = resolved?.error ?? '';
- const chartBuckets = valid?.range.start === valid?.range.end ? valid.buckets.filter(b => Number(b.key.slice(-2)) >= 8) : (valid?.buckets ?? []);
+ const chartBuckets = valid ? (valid.range.start === valid.range.end ? valid.buckets.filter(b => Number(b.key.slice(-2)) >= 8) : valid.buckets) : [];
  const activeBucket = chartBuckets.find(b => b.key === selectedBucket) ?? null;
  const max = Math.max(1, ...chartBuckets.map(b => b.answered + b.unanswered + b.abandoned));
  const formatTime = (date: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium' }).format(date);

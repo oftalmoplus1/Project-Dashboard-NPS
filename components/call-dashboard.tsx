@@ -109,8 +109,8 @@ export default function CallDashboard() {
         </button>;
        })}
       </div>
-      {valid.range.start === valid.range.end && <div aria-label="Escala horária de 0h a 23h, com marcações de uma em uma hora" style={{ display: 'flex', width: 624, minWidth: 624, marginTop: 4 }}>
-       {Array.from({ length: 24 }, (_, hour) => <span key={hour} style={{ width: 26, flexShrink: 0, fontSize: 10, textAlign: 'center', whiteSpace: 'nowrap', opacity: .8 }}>{hour}h</span>)}
+      {valid.range.start === valid.range.end && <div aria-label="Escala horária de 0h a 24h, com marcações de uma em uma hora" style={{ position: 'relative', width: 624, minWidth: 624, height: 22, marginTop: 4 }}>
+       {Array.from({ length: 25 }, (_, hour) => <span key={hour} style={{ position: 'absolute', left: hour * 26, transform: 'translateX(-50%)', fontSize: 10, whiteSpace: 'nowrap', opacity: .8 }}>{hour}h</span>)}
       </div>}
      </div>
      <p style={{ fontSize: 12, opacity: .7, marginTop: 6 }}>Selecione uma coluna para ver seus detalhes. Use a rolagem horizontal para acessar todos os intervalos.</p>

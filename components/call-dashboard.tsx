@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { RefreshCw, Table2 } from 'lucide-react';
-import { aggregateCalls, createDemoCalls, resolvePeriod, type Period } from '@/lib/call-dashboard';
+import { resolvePeriod, type Period } from '@/lib/call-dashboard';
+import { buildAggregateDashboard, type RpcRow } from '@/lib/call-dashboard-aggregates';
 const periods: { key: Period; label: string }[] = [{ key: 'today', label: 'Hoje' }, { key: 'yesterday', label: 'Ontem' }, { key: 'last7', label: 'Últimos 7 dias' }, { key: 'month', label: 'Este mês' }, { key: 'custom', label: 'Personalizado' }];
 const categories = [{ key: 'answered', label: 'Atendidas', color: '#258b78' }, { key: 'unanswered', label: 'Sem atendimento', color: '#d5a047' }, { key: 'abandoned', label: 'Abandonadas', color: '#bc6370' }] as const;
 const number = (n: number) => n.toLocaleString('pt-BR');
@@ -15,41 +16,81 @@ export default function CallDashboard() {
  const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
  const [error, setError] = useState('');
  const [refreshing, setRefreshing] = useState(false);
+ const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[] } | null>(null);
+ const [requestNumber, setRequestNumber] = useState(0);
  useEffect(() => {
-  const initial = new Date();
-  setNow(initial); setLastSuccess(initial);
-  const timer = window.setInterval(() => { if (document.visibilityState === 'visible') { const date = new Date(); setNow(date); setLastSuccess(date); } }, 60000);
+  setNow(new Date());
+  const timer = window.setInterval(() => {
+   if (document.visibilityState === 'visible') { setNow(new Date()); setRequestNumber(n => n + 1); }
+  }, 60000);
   return () => window.clearInterval(timer);
  }, []);
- const data = useMemo(() => {
+ const resolved = useMemo(() => {
   if (!now) return null;
-  try {
-   const range = resolvePeriod(period, now, start, end);
-   return { ...aggregateCalls(createDemoCalls(now), range, now), range };
-  } catch (e) { return { error: e instanceof Error ? e.message : 'Período inválido' }; }
+  try { return { range: resolvePeriod(period, now, start, end), error: '' }; }
+  catch (e) { return { range: null, error: e instanceof Error ? e.message : 'Período inválido' }; }
  }, [period, start, end, now]);
- const refresh = () => { if (refreshing) return; setRefreshing(true); setError(''); const date = new Date(); setNow(date); setLastSuccess(date); setRefreshing(false); };
- const valid = data && 'summary' in data ? data : null;
- const validation = data && 'error' in data ? data.error : '';
+ const range = resolved?.range;
+ const rangeKey = range ? `${range.start}:${range.end}` : '';
+ useEffect(() => {
+  if (!range || !rangeKey) return;
+  const controller = new AbortController();
+  let active = true;
+  const load = async () => {
+   setRefreshing(true);
+   setError('');
+   try {
+    const response = await fetch(`/api/chamadas?start=${range.start}&end=${range.end}`, {
+     cache: 'no-store', signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+     ? 'Sessão expirada ou acesso não autorizado.' : 'Não foi possível atualizar os indicadores.');
+    const result: unknown = await response.json();
+    if (!result || typeof result !== 'object' || !('rows' in result) ||
+        !Array.isArray(result.rows)) throw new Error('Resposta de dados inválida.');
+    const rows = result.rows as RpcRow[];
+    buildAggregateDashboard(rows, range);
+    if (active) { setSnapshot({ key: rangeKey, rows }); setLastSuccess(new Date()); }
+   } catch (e) {
+    if (active && !controller.signal.aborted)
+     setError(e instanceof Error ? e.message : 'Falha na atualização.');
+   } finally { if (active) setRefreshing(false); }
+  };
+  void load();
+  return () => { active = false; controller.abort(); };
+ }, [rangeKey, requestNumber]);
+ const refresh = useCallback(() => {
+  if (refreshing) return;
+  setNow(new Date());
+  setRequestNumber(n => n + 1);
+ }, [refreshing]);
+ const data = useMemo(() => {
+  if (!range || snapshot?.key !== rangeKey) return null;
+  try { return buildAggregateDashboard(snapshot.rows, range); }
+  catch { return null; }
+ }, [rangeKey, range?.granularity, snapshot]);
+ const valid = data;
+ const validation = resolved?.error ?? '';
  const activeBucket = valid?.buckets.find(b => b.key === selectedBucket) ?? null;
  const max = Math.max(1, ...(valid?.buckets.map(b => b.answered + b.unanswered + b.abandoned) ?? []));
  const formatTime = (date: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium' }).format(date);
  return <div>
-  <div className="notice"><span className="notice-dot"/><span><strong>Dados simulados.</strong> Esta interface não consulta o Supabase nem representa chamadas reais. Os valores são gerados localmente para validar o comportamento do dashboard.</span></div>
+  
   <section className="panel" style={{ padding: 20, marginBottom: 18 }}>
    <div className="panel-head"><div><h2>Período de consulta</h2><p>Horário de Brasília · America/Sao_Paulo</p></div><button className="outline-button" onClick={refresh} disabled={refreshing}><RefreshCw size={16}/> Atualizar agora</button></div>
    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>{periods.map(p => <button key={p.key} type="button" aria-pressed={period === p.key} onClick={() => setPeriod(p.key)} className={period === p.key ? 'primary-button' : 'outline-button'}>{p.label}</button>)}</div>
    {period === 'custom' && <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}><label>Data inicial <input type="date" value={start} onChange={e => setStart(e.target.value)}/></label><label>Data final <input type="date" value={end} onChange={e => setEnd(e.target.value)}/></label></div>}
-   <p style={{ fontSize: 13, opacity: .75 }}>Última atualização demonstrativa: {lastSuccess ? formatTime(lastSuccess) : 'Carregando...'}. Atualização local a cada 60 segundos enquanto a página estiver visível.</p>
+   <p style={{ fontSize: 13, opacity: .75 }}>Última atualização bem-sucedida: {lastSuccess ? formatTime(lastSuccess) : 'Carregando...'}. Consulta automática a cada 60 segundos enquanto a página estiver visível.</p>
    {validation && <p role="alert" style={{ color: 'var(--red)' }}>{validation}</p>}
-   {error && <p role="alert">{error}</p>}
+   {error && <p role="alert">{error} {valid ? "Exibindo os últimos dados válidos para este período." : ""}</p>}
+   {!valid && !validation && !error && <p role="status">Carregando indicadores reais...</p>}
   </section>
   {valid && <>
    <div className="stats-grid" style={{ marginBottom: 18 }}>
-    {[{ label: 'Registros recebidos', value: number(valid.summary.total) }, { label: 'Atendidos', value: number(valid.summary.answered) }, { label: 'Sem atendimento', value: number(valid.summary.unanswered) }, { label: 'Abandonados', value: number(valid.summary.abandoned) }, { label: 'Taxa de atendimento', value: valid.summary.answerRate === null ? '—' : valid.summary.answerRate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' }].map(card => <div className="stat-card" key={card.label}><div className="stat-top"><span>{card.label}</span></div><strong>{card.value}</strong><small>Registros operacionais · demonstração</small></div>)}
+    {[{ label: 'Registros recebidos', value: number(valid.summary.total) }, { label: 'Atendidos', value: number(valid.summary.answered) }, { label: 'Sem atendimento', value: number(valid.summary.unanswered) }, { label: 'Abandonados', value: number(valid.summary.abandoned) }, { label: 'Taxa de atendimento', value: valid.summary.answerRate === null ? '—' : valid.summary.answerRate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' }].map(card => <div className="stat-card" key={card.label}><div className="stat-top"><span>{card.label}</span></div><strong>{card.value}</strong><small>Registros operacionais · Supabase</small></div>)}
    </div>
    <section className="panel" style={{ padding: 20 }}>
-    <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>Colunas empilhadas · {valid.range.granularity === 'hour' ? 'por hora' : valid.range.granularity === 'day' ? 'por dia' : 'por mês'}</p></div></div>
+    <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>Colunas empilhadas · {valid.range.granularity === 'hour' ? 'a cada 2 horas' : valid.range.granularity === 'day' ? 'por dia' : 'por mês'}</p></div></div>
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>{categories.map(c => <span key={c.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}><span style={{ width: 11, height: 11, borderRadius: 2, background: c.color }}/>{c.label}</span>)}</div>
     {valid.summary.total === 0 ? <p>Nenhuma chamada no período selecionado.</p> : <>
      <div tabIndex={0} aria-label="Gráfico de chamadas recebidas, navegação horizontal disponível" style={{ overflowX: 'auto', padding: '16px 4px 12px', scrollBehavior: 'smooth' }}>

@@ -49,11 +49,20 @@ export default function CallPeriodCharts({ rows, rangeStart, rangeEnd, year, onY
     const load = async () => {
       setLoading(true); setAnnualError('');
       try {
-        const start = `${year}-01-01`, end = `${year}-12-31`;
-        const response = await fetch(`/api/chamadas?start=${start}&end=${end}`, {cache:'no-store',signal:controller.signal});
-        if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Acesso não autorizado.' : 'Não foi possível consultar o ano.');
-        const data = validateRows(await response.json());
-        if (active) setAnnual({year,rows:data});
+        // A RPC fornece intervalos de duas horas. Consultas bimestrais evitam
+        // exceder limites de linhas do PostgREST ao consultar um ano inteiro.
+        const ranges = Array.from({length:6},(_,index) => {
+          const first = index*2+1;
+          const start = `${year}-${String(first).padStart(2,'0')}-01`;
+          const end = new Date(Date.UTC(year,first+1,0)).toISOString().slice(0,10);
+          return {start,end};
+        });
+        const groups = await Promise.all(ranges.map(async ({start,end}) => {
+          const response = await fetch(`/api/chamadas?start=${start}&end=${end}`,{cache:'no-store',signal:controller.signal});
+          if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Acesso não autorizado.' : 'Não foi possível consultar o ano.');
+          return validateRows(await response.json());
+        }));
+        if (active) setAnnual({year,rows:groups.flat()});
       } catch (error) {
         if (active && !controller.signal.aborted) setAnnualError(error instanceof Error ? error.message : 'Erro ao consultar os meses.');
       } finally { if (active) setLoading(false); }

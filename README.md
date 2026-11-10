@@ -90,10 +90,10 @@ Critérios antes de publicar valores reais: conciliar com SQL na fonte para um d
 ### Gráficos adicionais de chamadas
 
 - **Chamadas por mês:** comparação de janeiro a dezembro do ano selecionado em barras horizontais empilhadas (atendidas, sem atendimento e abandonadas). Consulta o mesmo endpoint autenticado em seis intervalos bimestrais para evitar truncamento da resposta agregada; não modifica a RPC.
-- **Chamadas por hora:** distribuição dos mesmos registros recebidos em faixas de **duas horas**, preservando a resolução existente na RPC. A interface declara explicitamente essa limitação; não interpola valores para cada hora.
-- O gráfico diário/original, os indicadores e os filtros permanecem inalterados. O gráfico horário segue o intervalo do filtro principal; o gráfico mensal possui seletor de ano próprio.
+- **Chamadas por hora:** gráfico de linhas com 24 pontos (00h–23h), usando uma RPC específica de agregação **exata de uma hora**. Sem a RPC disponível, mostra mensagem de indisponibilidade; não interpola os valores da função antiga de duas horas.
+- O gráfico diário/original, os indicadores e os filtros permanecem inalterados. O gráfico horário segue o intervalo do filtro principal; o gráfico mensal possui seletor de ano próprio. No gráfico horário, cada ponto representa uma janela de 60 minutos em `America/Sao_Paulo`, do horário 00:00–00:59 ao 23:00–23:59.
 - Os dados são contagens reais agregadas retornadas por `/api/chamadas`, nunca dados simulados. Meses anteriores ao primeiro registro disponível no ano e meses futuros não são exibidos como zeros operacionais.
-- Para evoluir o gráfico horário para **uma hora exata**, será necessária uma nova versão da agregação na RPC, revisada quanto a permissões, desempenho e compatibilidade.
+- A rota protegida `/api/chamadas/por-hora` consulta a RPC **ainda pendente** `dashboard_chamadas_por_hora(p_inicio,p_fim)`. Ela deve retornar 0 a 24 linhas com `hora` (0–23), `total`, `atendidas`, `nao_atendidas`, `abandonadas`, `outras`, em contagens inteiras não negativas. O servidor valida as linhas e rejeita horas repetidas. A RPC será publicada somente após revisão do banco self-hosted, das permissões e das regras do agregado atual.
 
 ### Períodos disponíveis
 

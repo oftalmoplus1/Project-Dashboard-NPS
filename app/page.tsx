@@ -1,2 +1,3 @@
 import { redirect } from 'next/navigation';
-export default function Home(){redirect('/inicio')}
+import { getAuthorizedUser } from '@/lib/server/auth-session';
+export default async function Home(){const user=await getAuthorizedUser();redirect(user?'/chamadas':'/login')}

@@ -1,4 +1,5 @@
 'use client';
+import CallDashboard from './call-dashboard';
 import { Activity, BarChart3, CheckCircle2, Clock3, Database, Layers3, MoreHorizontal, Plus, Search, ShieldCheck, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import type { Section } from '@/lib/navigation';
 
@@ -24,4 +25,4 @@ const content:Partial<Record<Section,{title:string;description:string;icon:Lucid
  configuracoes:{title:'Configurações do ambiente',description:'A identidade visual da empresa já foi aplicada. As configurações persistentes serão implementadas em fases futuras.',icon:Layers3,items:['Paleta institucional','Modo claro e escuro','Preferências do ambiente']}
 };
 function Module({section}:{section:Section}){const data=content[section];if(!data)return null;const Icon=data.icon;return <><div className="notice"><span className="notice-dot"/><span><strong>Módulo planejado.</strong> Esta tela é uma estrutura visual e ainda não executa operações de negócio.</span></div><section className="panel module-panel"><div className="module-icon"><Icon size={26}/></div><h2>{data.title}</h2><p>{data.description}</p><div className="feature-list">{data.items.map(item=><div key={item}><CheckCircle2 size={16}/>{item}</div>)}</div><div className="module-bottom"><span className="phase-tag">Integração funcional em fase futura</span></div></section></>}
-export default function SectionContent({section,query,setQuery}:Props){if(section==='inicio')return <Overview/>;if(section==='dashboards')return <Dashboards query={query} setQuery={setQuery}/>;return <Module section={section}/>}
+export default function SectionContent({section,query,setQuery}:Props){if(section==='inicio')return <Overview/>;if(section==='chamadas')return <CallDashboard/>;if(section==='dashboards')return <Dashboards query={query} setQuery={setQuery}/>;return <Module section={section}/>}

@@ -70,6 +70,23 @@ Fluxo: **LigSim → automação n8n → Supabase PostgreSQL → RPC de agregaç�
 7. A tabela detalhada apresenta todos os intervalos agregados, inclusive os anteriores às 8h.
 
 
+
+### Cartões: abandono em fila, TMA e TME
+
+Os três cartões foram adicionados à tela de chamadas. **Não existem valores fictícios nem cálculo por aproximação a partir das contagens**: quando a fonte ainda não estiver configurada ou retornar valor ausente, a interface apresenta `—` e informa que a fonte precisa ser validada.
+
+A rota `GET /api/chamadas/indicadores?start=AAAA-MM-DD&end=AAAA-MM-DD` exige autenticação, valida período e consulta uma **RPC futura** `dashboard_chamadas_tempos_e_filas(p_inicio,p_fim)`. O Supabase self-hosted real não estava disponível nesta sessão; a RPC **não foi criada nem alterada**.
+
+Contrato esperado da RPC (uma linha): `taxa_abandono_fila` (percentual de 0 a 100 ou NULL), `tma_segundos` (média em segundos ou NULL), `tme_segundos` (média em segundos ou NULL). Os valores só devem ser disponibilizados após revisão de RLS/autorização, teste de reconciliação e confirmação da fonte de eventos de fila.
+
+- **Taxa de abandono em fila:** abandonos comprovados após entrar na fila / (atendimentos na fila + abandonos na fila) × 100. Nunca usar todos os `ABANDON` da tabela geral como numerador.
+- **TMA:** `AVG(ta)` para `disposition = 'ANSWERED'`, `call_direction IN ('Recebida','Efetuada')`, `ta IS NOT NULL`. Inclui ligações administrativas externas e exclui ramais.
+- **TME geral:** média de `tet` em chamadas externas atendidas com `tet` válido, usando a interpretação documentada da API; distingue-se do `tef` (espera específica em fila).
+- O período deve ser interpretado em `America/Sao_Paulo`, com inclusividade equivalente ao filtro existente.
+- O endpoint do aplicativo usa a sessão do usuário e chave pública, nunca `service_role` no cliente. Uma falha na RPC não deve apresentar zero como resultado.
+
+Critérios antes de publicar valores reais: conciliar com SQL na fonte para um dia, um mês e período personalizado; validar ausência de dados; validar autorização de gestor/admin; verificar inexistência de dados de ligação identificáveis no retorno; executar lint, typecheck e build.
+
 ### Gráficos adicionais de chamadas
 
 - **Chamadas por mês:** comparação de janeiro a dezembro do ano selecionado em barras horizontais empilhadas (atendidas, sem atendimento e abandonadas). Consulta o mesmo endpoint autenticado em seis intervalos bimestrais para evitar truncamento da resposta agregada; não modifica a RPC.

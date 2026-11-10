@@ -20,6 +20,7 @@ export default function CallDashboard() {
  const [refreshing, setRefreshing] = useState(false);
  const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[] } | null>(null);
  const [requestNumber, setRequestNumber] = useState(0);
+ const [extra, setExtra] = useState<{key:string;metrics:{taxa_abandono_fila:number|null;tma_segundos:number|null;tme_segundos:number|null}|null}|null>(null);
  useEffect(() => {
   setNow(new Date());
   const timer = window.setInterval(() => {
@@ -61,6 +62,34 @@ export default function CallDashboard() {
   void load();
   return () => { active = false; controller.abort(); };
  }, [rangeKey, requestNumber]);
+ useEffect(() => {
+  if (!rangeKey || !range) return;
+  const controller = new AbortController();
+  let active = true;
+  setExtra(null);
+  const load = async () => {
+   try {
+    const response = await fetch(`/api/chamadas/indicadores?start=${range.start}&end=${range.end}`,{cache:'no-store',signal:controller.signal});
+    if (!response.ok) return;
+    const result: unknown = await response.json();
+    if (!result || typeof result !== 'object' || !('metrics' in result)) return;
+    const metrics = result.metrics;
+    if (!metrics || typeof metrics !== 'object') {
+      if (active) setExtra({key:rangeKey,metrics:null});
+      return;
+    }
+    const m = metrics as Record<string,unknown>;
+    const numeric = (v:unknown) => v === null || (typeof v === 'number' && Number.isFinite(v) && v >= 0);
+    if (numeric(m.taxa_abandono_fila) && numeric(m.tma_segundos) && numeric(m.tme_segundos) &&
+        (m.taxa_abandono_fila === null || (m.taxa_abandono_fila as number) <= 100) && active)
+      setExtra({key:rangeKey,metrics:metrics as {taxa_abandono_fila:number|null;tma_segundos:number|null;tme_segundos:number|null}});
+   } catch { /* Não substituir indicadores por números sem fonte validada. */ }
+  };
+  void load();
+  return () => {active=false;controller.abort();};
+ },[rangeKey,requestNumber]);
+ const formatDuration = (seconds:number|null|undefined) => seconds == null ? '—' :
+  `${String(Math.floor(Math.round(seconds)/60)).padStart(2,'0')}:${String(Math.round(seconds)%60).padStart(2,'0')}`;
  const refresh = useCallback(() => {
   if (refreshing) return;
   setNow(new Date());
@@ -91,6 +120,17 @@ export default function CallDashboard() {
   {valid && <>
    <div className="stats-grid" style={{ marginBottom: 18 }}>
     {[{ label: 'Registros recebidos', value: number(valid.summary.total) }, { label: 'Atendidos', value: number(valid.summary.answered) }, { label: 'Sem atendimento', value: number(valid.summary.unanswered) }, { label: 'Abandonadas (geral)', value: number(valid.summary.abandoned) }, { label: 'Taxa de atendimento', value: valid.summary.answerRate === null ? '—' : valid.summary.answerRate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' }].map(card => <div className="stat-card" key={card.label}><div className="stat-top"><span>{card.label}</span></div><strong>{card.value}</strong><small>Registros operacionais · Supabase</small></div>)}
+   </div>
+   <div className="stats-grid" style={{marginBottom:18}}>
+    {[
+      {label:'Taxa de abandono em fila',value:extra?.key===rangeKey && extra.metrics?.taxa_abandono_fila != null ? extra.metrics.taxa_abandono_fila.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%' : '—',detail:'Somente abandonos após entrada na fila'},
+      {label:'TMA · Tempo médio de atendimento',value:extra?.key===rangeKey?formatDuration(extra.metrics?.tma_segundos):'—',detail:'Chamadas externas atendidas · ta'},
+      {label:'TME · Tempo médio de espera',value:extra?.key===rangeKey?formatDuration(extra.metrics?.tme_segundos):'—',detail:'Espera total em chamadas externas atendidas · tet'}
+    ].map(card => <div className="stat-card" key={card.label}>
+      <div className="stat-top"><span>{card.label}</span></div>
+      <strong>{card.value}</strong>
+      <small>{card.value==='—'?'Aguardando fonte validada · sem estimativa':card.detail}</small>
+    </div>)}
    </div>
    <section className="panel" style={{ padding: 20 }}>
     <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>Colunas empilhadas · {valid.range.granularity === 'hour' ? 'das 8h às 24h, agrupadas a cada 2 horas' : valid.range.granularity === 'day' ? 'por dia' : 'por mês'}</p></div></div>

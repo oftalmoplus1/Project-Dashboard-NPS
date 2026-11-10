@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { RefreshCw, Table2 } from 'lucide-react';
+import CallPeriodCharts from './call-period-charts';
 import { resolvePeriod, type Period } from '@/lib/call-dashboard';
 import { buildAggregateDashboard, type RpcRow } from '@/lib/call-dashboard-aggregates';
 const periods: { key: Period; label: string }[] = [{ key: 'today', label: 'Hoje' }, { key: 'yesterday', label: 'Ontem' }, { key: 'last7', label: 'Últimos 7 dias' }, { key: 'month', label: 'Este mês' }, { key: 'custom', label: 'Personalizado' }];
@@ -8,6 +9,7 @@ const categories = [{ key: 'answered', label: 'Atendidas', color: '#12b981' }, {
 const number = (n: number) => n.toLocaleString('pt-BR');
 export default function CallDashboard() {
  const [period, setPeriod] = useState<Period>('today');
+ const [annualYear, setAnnualYear] = useState(new Date().getFullYear());
  const [start, setStart] = useState('');
  const [end, setEnd] = useState('');
  const [now, setNow] = useState<Date | null>(null);
@@ -129,6 +131,7 @@ export default function CallDashboard() {
     <div style={{ marginTop: 18 }}><button className="outline-button" type="button" aria-expanded={tableOpen} onClick={() => setTableOpen(v => !v)}><Table2 size={16}/>{tableOpen ? 'Ocultar tabela' : 'Ver dados em tabela'}</button></div>
     {tableOpen && <div className="table-wrap" style={{ marginTop: 16, overflowX: 'auto' }}><table><thead><tr><th>Período</th><th>Atendidas</th><th>Sem atendimento</th><th>Abandonadas</th><th>Outros</th><th>Total</th></tr></thead><tbody>{valid.buckets.map(b => <tr key={b.key}><td>{b.label}</td><td>{number(b.answered)}</td><td>{number(b.unanswered)}</td><td>{number(b.abandoned)}</td><td>{number(b.other)}</td><td>{number(b.total)}</td></tr>)}<tr><td><strong>Total geral</strong></td><td><strong>{number(valid.summary.answered)}</strong></td><td><strong>{number(valid.summary.unanswered)}</strong></td><td><strong>{number(valid.summary.abandoned)}</strong></td><td><strong>{number(valid.summary.other)}</strong></td><td><strong>{number(valid.summary.total)}</strong></td></tr></tbody></table></div>}
    </section>
+   <CallPeriodCharts rows={snapshot?.rows ?? []} rangeStart={valid.range.start} rangeEnd={valid.range.end} year={annualYear} onYearChange={setAnnualYear} currentYear={now ? Number(new Intl.DateTimeFormat('en-US', {timeZone:'America/Sao_Paulo',year:'numeric'}).format(now)) : annualYear} refreshKey={requestNumber}/>
   </>}
  </div>;
 }

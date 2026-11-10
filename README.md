@@ -69,6 +69,15 @@ Fluxo: **LigSim → automação n8n → Supabase PostgreSQL → RPC de agregaç�
 6. O gráfico apresenta marcações horárias intermediárias, mas **não dispõe ainda de agregação de uma hora por coluna**. Isso exige revisão da RPC e validação da regra antes da mudança.
 7. A tabela detalhada apresenta todos os intervalos agregados, inclusive os anteriores às 8h.
 
+
+### Gráficos adicionais de chamadas
+
+- **Chamadas por mês:** comparação de janeiro a dezembro do ano selecionado em barras horizontais empilhadas (atendidas, sem atendimento e abandonadas). Consulta o mesmo endpoint autenticado em seis intervalos bimestrais para evitar truncamento da resposta agregada; não modifica a RPC.
+- **Chamadas por hora:** distribuição dos mesmos registros recebidos em faixas de **duas horas**, preservando a resolução existente na RPC. A interface declara explicitamente essa limitação; não interpola valores para cada hora.
+- O gráfico diário/original, os indicadores e os filtros permanecem inalterados. O gráfico horário segue o intervalo do filtro principal; o gráfico mensal possui seletor de ano próprio.
+- Os dados são contagens reais agregadas retornadas por `/api/chamadas`, nunca dados simulados. Meses anteriores ao primeiro registro disponível no ano e meses futuros não são exibidos como zeros operacionais.
+- Para evoluir o gráfico horário para **uma hora exata**, será necessária uma nova versão da agregação na RPC, revisada quanto a permissões, desempenho e compatibilidade.
+
 ### Períodos disponíveis
 
 - **Hoje** e **Ontem:** data local em `America/Sao_Paulo`, com agrupamento de 2 horas.

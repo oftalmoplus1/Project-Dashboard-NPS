@@ -1,53 +1,71 @@
--- Diagnostico SOMENTE LEITURA para planejar o catalogo e as permissoes.
--- Rodar no SQL Editor do Supabase self-hosted, sem modificar o banco.
--- Compartilhe o resultado sem dados pessoais de usuarios.
+-- INVENTARIO UNIFICADO - SOMENTE LEITURA
+-- Execute TODO este arquivo no SQL Editor do Supabase self-hosted.
+-- Ha apenas UMA consulta SELECT no fim: exporte UM CSV que inclui tabelas,
+-- colunas, RLS, politicas e funcoes. Nao apresenta dados pessoais ou registros.
+-- Nenhum CREATE, ALTER, GRANT, REVOKE, INSERT, UPDATE ou DELETE.
+--
+-- Objetivo: avaliar se ja existe estrutura para topicos, dashboards, graficos
+-- e grants por usuario + topico + dashboard ANTES de desenhar uma migracao.
+--
+WITH tabelas_candidatas AS (
+    SELECT n.nspname AS esquema,
+           c.relname AS tabela,
+           c.oid AS oid_tabela,
+           c.relrowsecurity AS rls_ativo,
+           c.relforcerowsecurity AS rls_forcado
+    FROM pg_catalog.pg_class AS c
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE c.relkind IN ('r','p')
+      AND n.nspname NOT IN (
+          'pg_catalog','information_schema','auth','storage',
+          'realtime','extensions','vault'
+      )
+      AND c.relname ~* '(dashboard|topico|tópico|topic|chart|grafico|gráfico|permis|audit|usuario|profile|perfil)'
+),
+inventario AS (
+    SELECT
+        '01_TABELA'::text AS tipo,
+        t.esquema::text AS esquema,
+        t.tabela::text AS objeto,
+        ('RLS ativo=' || t.rls_ativo::text
+          || '; RLS forçado=' || t.rls_forcado::text) AS detalhe
+    FROM tabelas_candidatas t
 
--- 1. Identificar schemas/tabelas relevantes sem depender de nomes presumidos.
-SELECT table_schema, table_name, table_type
-FROM information_schema.tables
-WHERE table_schema NOT IN ('pg_catalog','information_schema','auth','storage','realtime','extensions','vault')
-  AND (table_name ILIKE '%dashboard%' OR table_name ILIKE '%topico%'
-    OR table_name ILIKE '%chart%' OR table_name ILIKE '%grafico%'
-    OR table_name ILIKE '%permis%' OR table_name ILIKE '%audit%'
-    OR table_name ILIKE '%usuario%' OR table_name ILIKE '%profile%')
-ORDER BY table_schema, table_name;
+    UNION ALL
 
--- 2. Revisar apenas metadados de colunas dessas tabelas.
-SELECT c.table_schema, c.table_name, c.column_name, c.data_type, c.is_nullable
-FROM information_schema.columns c
-WHERE c.table_schema NOT IN ('pg_catalog','information_schema','auth','storage','realtime','extensions','vault')
- AND (c.table_name ILIKE '%dashboard%' OR c.table_name ILIKE '%topico%'
-    OR c.table_name ILIKE '%chart%' OR c.table_name ILIKE '%grafico%'
-    OR c.table_name ILIKE '%permis%' OR c.table_name ILIKE '%audit%'
-    OR c.table_name ILIKE '%usuario%' OR c.table_name ILIKE '%profile%')
-ORDER BY c.table_schema, c.table_name, c.ordinal_position;
+    SELECT
+        '02_COLUNA', c.table_schema, c.table_name,
+        (c.column_name || ': ' || c.data_type
+         || '; NULL=' || c.is_nullable
+         || CASE WHEN c.column_default IS NOT NULL
+                 THEN '; DEFAULT configurado' ELSE '' END)
+    FROM information_schema.columns AS c
+    JOIN tabelas_candidatas AS t
+      ON t.esquema = c.table_schema AND t.tabela = c.table_name
 
--- 3. Verificar RLS e politicas das tabelas candidatas.
-SELECT schemaname, tablename, rowsecurity, forcerowsecurity
-FROM (
- SELECT n.nspname AS schemaname, t.relname AS tablename,
-        t.relrowsecurity AS rowsecurity, t.relforcerowsecurity AS forcerowsecurity
- FROM pg_catalog.pg_class t
- JOIN pg_catalog.pg_namespace n ON n.oid=t.relnamespace
- WHERE t.relkind='r'
-) t
-WHERE schemaname NOT IN ('pg_catalog','information_schema','auth','storage','realtime','extensions','vault')
- AND (tablename ILIKE '%dashboard%' OR tablename ILIKE '%topico%' OR tablename ILIKE '%chart%'
- OR tablename ILIKE '%grafico%' OR tablename ILIKE '%permis%' OR tablename ILIKE '%audit%')
-ORDER BY schemaname,tablename;
+    UNION ALL
 
-SELECT schemaname, tablename, policyname, permissive, roles, cmd
-FROM pg_catalog.pg_policies
-WHERE schemaname NOT IN ('pg_catalog','information_schema','auth','storage','realtime','extensions','vault')
- AND (tablename ILIKE '%dashboard%' OR tablename ILIKE '%topico%' OR tablename ILIKE '%chart%'
- OR tablename ILIKE '%grafico%' OR tablename ILIKE '%permis%' OR tablename ILIKE '%audit%')
-ORDER BY schemaname,tablename,policyname;
+    SELECT
+        '03_POLITICA', p.schemaname, p.tablename,
+        (p.policyname || '; comando=' || p.cmd
+          || '; papeis=' || array_to_string(p.roles, ','))::text
+    FROM pg_catalog.pg_policies AS p
+    JOIN tabelas_candidatas AS t
+      ON t.esquema = p.schemaname AND t.tabela = p.tablename
 
--- 4. Identificar funcoes existentes do catalogo, SEM expor seus corpos.
-SELECT n.nspname AS schema, p.proname AS nome, pg_catalog.pg_get_function_identity_arguments(p.oid) AS argumentos
-FROM pg_catalog.pg_proc p
-JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
-WHERE n.nspname NOT IN ('pg_catalog','information_schema','auth','storage','realtime','extensions','vault')
- AND (p.proname ILIKE '%dashboard%' OR p.proname ILIKE '%topico%'
- OR p.proname ILIKE '%chart%' OR p.proname ILIKE '%permis%')
-ORDER BY n.nspname,p.proname;
+    UNION ALL
+
+    SELECT
+        '04_FUNCAO', n.nspname::text, p.proname::text,
+        pg_catalog.pg_get_function_identity_arguments(p.oid)::text
+    FROM pg_catalog.pg_proc AS p
+    JOIN pg_catalog.pg_namespace AS n ON n.oid = p.pronamespace
+    WHERE n.nspname NOT IN (
+        'pg_catalog','information_schema','auth','storage',
+        'realtime','extensions','vault'
+    )
+      AND p.proname ~* '(dashboard|topico|tópico|topic|chart|grafico|gráfico|permis)'
+)
+SELECT tipo, esquema, objeto, detalhe
+FROM inventario
+ORDER BY tipo, esquema, objeto, detalhe;

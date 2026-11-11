@@ -35,19 +35,18 @@ export default function AppShell({section,callView='geral',role}:{section:Sectio
     {(['Meus Dashboards','Administração'] as const).filter(group=>group!=='Administração'||admin).map(group=>{
       const expanded=openGroup===group;
       const items=sections.filter(item=>item.group===group && (admin||item.slug!=='chamadas'));
-      if(items.length===0)return null;
       return <div className="nav-group accordion-group" key={group}>
         <button type="button" title={group} className={`accordion-trigger ${expanded?'expanded':''}`} aria-expanded={expanded} aria-controls={`nav-group-${group}`} onClick={()=>setOpenGroup(expanded?null:group)}>
           <span>{group}</span><ChevronDown size={16} aria-hidden="true"/>
         </button>
         <div id={`nav-group-${group}`} className={`accordion-panel ${expanded?'expanded':''}`} inert={!expanded}>
           <div className="accordion-panel-inner">
+            {items.length===0 && <span className="nav-no-access">Nenhum tópico autorizado.</span>}
             {items.map(item=>{const Icon=item.icon;return <Link key={item.slug} href={`/${item.slug}`} title={item.label} className={`nav-item ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}><Icon size={18} strokeWidth={1.9}/><span className="nav-item-label">{item.label}</span></Link>})}
           </div>
         </div>
       </div>
     })}
-    {!admin && <div className="nav-no-access">Nenhum dashboard autorizado. Solicite acesso ao administrador.</div>}
     <Link href="/configuracoes" title="Configurações" className={`nav-item settings-direct-link ${section==='configuracoes'?'active':''}`} aria-current={section==='configuracoes'?'page':undefined}><span className="nav-settings-icon">{(() => { const Icon=sections.find(s=>s.slug==='configuracoes')!.icon;return <Icon size={18} strokeWidth={1.9}/> })()}</span><span className="nav-item-label">Configurações</span></Link>
    </nav>
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span className="sidebar-detail">{callsLive ? 'Chamadas · dados reais' : 'Ambiente visual de demonstração'}<br/><small>{callsLive ? 'Indicadores agregados do Supabase' : 'Sem conexão com dados reais'}</small></span></div><div className="account"><div className="avatar">AD</div><div className="sidebar-detail"><strong>{callsLive ? 'Usuário autenticado' : 'Usuário'}</strong><small>{callsLive ? 'Acesso autorizado' : 'Sessão autenticada'}</small></div><ChevronDown size={16}/></div></div>

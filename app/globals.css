@@ -58,3 +58,26 @@
 .topic-list-item strong{font-size:12px}
 .topic-list-item small{font-size:11px;color:var(--muted)}
 @media(max-width:620px){.manage-topics-content{padding:14px}.topic-create-row{flex-direction:column}.topic-create-row .primary-button{justify-content:center}}
+
+/* Associacoes de dashboards com topicos (sem duplicar dados). */
+.topic-list-group{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.topic-list-group .topic-list-item{border:0;width:100%;text-align:left;background:var(--panel);color:var(--text)}
+.topic-list-group .topic-list-item:hover{background:var(--soft)}
+.topic-list-info{display:grid;gap:5px;flex:1}
+.topic-list-info strong{font-size:12px}
+.topic-list-info small{font-size:11px;color:var(--muted)}
+.topic-chevron{color:var(--muted);transition:transform .2s}
+.topic-chevron.expanded{transform:rotate(180deg)}
+.topic-details{padding:16px;border-top:1px solid var(--border);background:var(--soft);font-size:12px}
+.topic-details p{color:var(--muted)}
+.topic-details-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.topic-dashboard-items{list-style:none;padding:0;margin:0 0 14px;display:grid;gap:8px}
+.topic-dashboard-items li{border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.topic-dashboard-items a:hover{color:var(--teal);text-decoration:underline}
+.topic-dashboard-items small{color:var(--muted)}
+.topic-association-options{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px}
+.topic-association-options>strong{flex-basis:100%}
+.topic-association-options>small{color:var(--muted)}
+.topic-association-options button{max-width:100%}
+.nav-topic-item .nav-item-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:760px){.topic-details-header{flex-wrap:wrap}}

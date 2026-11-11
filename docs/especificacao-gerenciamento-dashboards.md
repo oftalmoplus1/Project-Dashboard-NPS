@@ -148,3 +148,34 @@ Aprovacao de lint, TypeScript e build no commit mais recente, e testes de integr
 **Baseline** (2026-10-01 a 2026-10-31): 6602 externas atendidas, 6597 `ta` validos, 6602 `tet` validos; TMA 177.14s (02:57), TME 124.08s (02:04). Validar em navegador admin com intervalo Personalizado e JSON da rota.
 
 **Status:** implementacao em GitHub; RPC consolidada ainda nao confirmada/instalada no Supabase self-hosted desta conversa. Nao reexecutar o script antigo de TMA/TME diario nem mexer nas funcoes de chamadas ja funcionando.
+
+## Indicador: Taxa de abandono em fila — descoberta e auditoria da fonte (2026-11-11)
+
+**Objetivo:** ativar o cartão existente `Taxa de abandono em fila` na Visão geral de Chamadas, usando exclusivamente eventos que comprovem entrada na fila, abandono na fila ou atendimento na fila. Enquanto a fonte não for homologada, valor `NULL`/traço, sem estimativa.
+
+### Fórmula de negócio proposta
+`taxa = 100 * abandonos_apos_entrada_na_fila / (atendimentos_na_fila + abandonos_apos_entrada_na_fila)`.
+A unidade de contagem deverá ser **ocorrência de atendimento na fila**, com evento único verificável e deduplicação, para evitar misturar eventos de transferência/reencaminhamento. Quando o denominador for zero, retornar `NULL`.
+
+### Evidências verificadas
+- Em CSV histórico da tabela `relatorio_chamadas` havia 7.316 chamadas `ABANDON`, todas com `queuename` não preenchido; o período desse levantamento não foi revalidado neste turno. Não atribuir abandonos a filas usando apenas `disposition='ABANDON'`.
+- A tabela `relatorio_fila_exame` foi observada em um CSV com colunas `time, queue_name, event, src, waiting, speaking, incoming_position, phone_answer` e amostra de 10 eventos do tipo `COMPLETECALLER`/`COMPLETEAGENT`, todos da `FILA-EXAME`. Não há evidência suficiente de abandono por fila no material analisado.
+- Workflow n8n ativo `Integration-LigSim-Supabase`: `GET-Relatório-Filas` chama endpoint de relatório por fila com `type=answer` e fila fixa `FILA-EXAME`; conectado a `Split Out2 -> POST-Relatório-Filas`, que envia ao Supabase `relatorio_fila_exame`.
+- O nó `POST-Relatório-Filas1` foi encontrado **desconectado** do workflow ativo. Ele menciona `report_type='abandon'` e um nome de tabela diferente; não ativar nem reutilizar sem confirmar schema/contrato.
+- Uma execução bem-sucedida no n8n retornou resposta com estrutura `data.reports` e 25 itens de atendimento na amostra. A coleta atual não comprova paginação nem cobertura de todas as filas.
+- Detectada configuração de chave de integração diretamente em cabeçalhos de nós do n8n. Recomenda-se migrar para credenciais gerenciadas e rotacionar a chave após planejamento; nunca versionar ou exibir secrets.
+
+### Critérios de homologação da origem
+1. Descobrir e documentar o contrato dos endpoints de relatório de fila (inclusive abandono) e sua semântica real, sem supor códigos de evento.
+2. Capturar **todas as filas do escopo**; quando o provedor implementar paginação, percorrer páginas até a conclusão e tratar intervalos de datas.
+3. Persistir eventos com identificador natural/estável adequado (definido após analisar payload real) e ingestão idempotente, sem registrar dados pessoais desnecessários.
+4. Validar classificação de pelo menos uma amostra do próprio provedor de cada classe: atendida na fila, abandonada na fila e abandono antes da fila. Verificar transferências/transbordos.
+5. Conferir contagens por fila e dia contra o painel oficial LigSim; comparar somatório global com soma dos escopos sem duplicidade.
+6. Aplicar `America/Sao_Paulo`, mesmos filtros de período do dashboard, retorno `NULL` com denominador zero e sem cobertura.
+7. Só então criar tabela/consulta/RPC nova de eventos com acesso autenticado e ACL contextual; não ampliar privilégios legados.
+8. Manter TMA/TME e gráfico diário inalterados. Cobrir testes, typecheck, build, segurança e auditoria antes de implantação.
+
+### Entrega inicial
+- `docs/sql/diagnostico_taxa_abandono_fila.sql`: consulta única, somente leitura, identifica tabelas e colunas relacionadas a filas, e agrega cobertura de nome da fila/TEF por disposição e mês (sem PII).
+- Workflow e banco existentes **não foram alterados**; nenhuma taxa foi calculada nem publicada.
+- Próxima decisão após resultado: confirmar fonte de eventos de abandono e escopo de todas as filas ou filas específicas, sem inventar valores.

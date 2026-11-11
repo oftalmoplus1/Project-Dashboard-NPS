@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   try {
     const user = await verifySupabaseUser(token);
-    if (!user) return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 });
+    if (!user || user.role !== 'administrador') return NextResponse.json({ error: 'Acesso não autorizado.' }, { status: 403 });
 
     const { url: supabaseUrl, publishableKey } = getSupabaseServerConfig();
     const response = await fetch(`${supabaseUrl}/rest/v1/rpc/dashboard_chamadas_agregadas`, {

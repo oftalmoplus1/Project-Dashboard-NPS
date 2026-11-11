@@ -125,3 +125,26 @@ Aprovacao de lint, TypeScript e build no commit mais recente, e testes de integr
 **Ativacao segura:** ambiente de homologacao + backup recuperavel + revisao do SQL; executar somente o script novo, nunca os scripts antigos da estrutura (ja instalados), validar existencia e grants, vincular pelo app e verificar auditoria. Nao unir a `main` antes de homologar as rotas e bloqueio de gerente.
 
 **Proxima etapa:** interface de concessao individual contextual e verificacao end-to-end da autorizacao de APIs e graficos; depois editor visual de graficos e fluxo de publicacao.
+
+## Ajuste dos cartoes operacionais — TMA, TME e abandono em fila (2026-11-11)
+
+**Diagnostico:** os cartoes de "Visao geral de Chamadas" consultam `/api/chamadas/indicadores`, cuja RPC consolidada `public.dashboard_chamadas_tempos_e_filas(date,date)` nao figurou no ultimo inventario de funcoes publicas. A RPC diaria `dashboard_chamadas_tempos_por_dia` nao deve ser usada para calcular a media do periodo por media de medias diarias: isso criaria vies quando o numero de chamadas difere entre dias.
+
+**Regra consolidada:**
+- TMA = `AVG(ta)` em `public.relatorio_chamadas` para `disposition='ANSWERED'`, `call_direction IN ('Recebida','Efetuada')`, apenas `ta` nao nulo. Intervalo local `America/Sao_Paulo`.
+- TME = `AVG(tet)` no mesmo universo; `tet` nao nulo. As medias sao calculadas separadamente e arredondadas a 2 casas somente no retorno.
+- Nao incluir `Entre ramais` nessas medias.
+- **Taxa de abandono em fila**: sem fonte de eventos validada, manter `null`. Nao calcular usando `ABANDON` generico. A taxa so sera homologada com entrada em fila inequívoca, separando chamadas atendidas em fila e abandonadas apos entrada em fila.
+- Sem chamadas validas em um periodo, exibir estado "Sem chamadas externas atendidas" e nao `00:00` ficticio.
+- Falha de RPC deve produzir HTTP 503 (ou 502 para formato invalido) em vez de sucesso 200 com valores nulos; a tela distingue falha, carregamento e ausencia real de registros.
+- Até a implantacao da ACL contextual, acesso a RPC de indicadores somente para admin autenticado. Manager deve ser bloqueado inclusive por chamada direta da RPC.
+
+**Codigo e SQL versionados:**
+- `docs/sql/dashboard_chamadas_indicadores_resumo.sql`: cria/substitui SOMENTE a RPC de TMA/TME consolidados, sem alterar a RPC diaria ja homologada; acesso privado seguro e wrapper no schema `public`.
+- `docs/sql/dashboard_chamadas_indicadores_resumo_validacao.sql`: preflight, grants e comparacao direta dos resultados de outubro/2026.
+- `app/api/chamadas/indicadores/route.ts`: falhas sem mascaramento como HTTP 200.
+- `components/call-dashboard.tsx`: mensagens diferenciadas e tempo em `mm:ss`.
+
+**Baseline** (2026-10-01 a 2026-10-31): 6602 externas atendidas, 6597 `ta` validos, 6602 `tet` validos; TMA 177.14s (02:57), TME 124.08s (02:04). Validar em navegador admin com intervalo Personalizado e JSON da rota.
+
+**Status:** implementacao em GitHub; RPC consolidada ainda nao confirmada/instalada no Supabase self-hosted desta conversa. Nao reexecutar o script antigo de TMA/TME diario nem mexer nas funcoes de chamadas ja funcionando.

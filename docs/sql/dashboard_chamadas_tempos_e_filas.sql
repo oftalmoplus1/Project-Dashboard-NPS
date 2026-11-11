@@ -119,7 +119,9 @@ BEGIN
     RETURN QUERY
     WITH dias AS (
         SELECT gs::date AS dia_local
-        FROM pg_catalog.generate_series(p_inicio, p_fim, 1) AS gs
+        FROM pg_catalog.generate_series(
+            p_inicio::timestamp, p_fim::timestamp, INTERVAL '1 day'
+        ) AS gs
     ),
     medias AS (
         SELECT

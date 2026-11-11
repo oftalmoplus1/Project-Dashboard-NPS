@@ -32,11 +32,12 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
   const [error,setError]=useState('');
   const [selected,setSelected]=useState<number|null>(null);
   const [hovered,setHovered]=useState<number|null>(null);
+  const [pointer,setPointer]=useState<{x:number;y:number}|null>(null);
   const key=start+':'+end;
   useEffect(()=>{
     const controller=new AbortController();
     let active=true;
-    setLoading(true);setError('');setSelected(null);setHovered(null);
+    setLoading(true);setError('');setSelected(null);setHovered(null);setPointer(null);
     const load=async()=>{
       try {
         const res=await fetch('/api/chamadas/por-hora?start='+start+'&end='+end,{cache:'no-store',signal:controller.signal});
@@ -67,7 +68,18 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
   const active=selected!==null && values ? values[selected] : null;
   const highlightedHour=hovered ?? selected;
   const highlighted=highlightedHour!==null && values ? values[highlightedHour] : null;
-  const tooltipX=highlightedHour===null ? 0 : Math.max(left+4,Math.min(left+width-190,posX(highlightedHour)-95));
+  const tooltipWidth=174, tooltipHeight=108;
+  const anchorX=pointer && hovered!==null ? pointer.x : highlightedHour===null ? left : posX(highlightedHour);
+  const anchorY=pointer && hovered!==null ? pointer.y : top+55;
+  const tooltipX=anchorX+tooltipWidth+22>920 ? Math.max(4,anchorX-tooltipWidth-14) : anchorX+14;
+  const tooltipY=Math.max(8,Math.min(325-tooltipHeight-8,anchorY-24));
+  const trackPointer=(event:React.MouseEvent<SVGRectElement>)=>{
+    const svg=event.currentTarget.ownerSVGElement;
+    if (!svg) return;
+    const bounds=svg.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    setPointer({x:(event.clientX-bounds.left)*920/bounds.width,y:(event.clientY-bounds.top)*325/bounds.height});
+  };
   return <section className="panel" style={{padding:20,marginBottom:18}}>
     <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Gráfico de linhas · intervalos exatos de 1 hora · horário de Brasília</p></div></div>
     {loading && <p role="status" style={{fontSize:12}}>Atualizando dados horários...</p>}
@@ -88,20 +100,28 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
           {series.map(s=><g key={s.key}>
             <path d={line(s.key)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             {values.map(v=><circle key={v.hora} cx={posX(v.hora)} cy={posY(v[s.key])}
-              r={highlightedHour===v.hora ? 5.5 : 3.6} fill={s.color} stroke="var(--panel)" strokeWidth="1.5"/>)}
+              r={highlightedHour===v.hora ? 5.5 : 3.6} fill={s.color} stroke="var(--panel)" strokeWidth="1.5"
+              style={{transition:'r 180ms ease-out'}}/>)}
           </g>)}
-          {highlighted && highlightedHour!==null && <g pointerEvents="none">
-            <line x1={posX(highlightedHour)} x2={posX(highlightedHour)} y1={top} y2={top+height}
-              stroke="var(--muted)" strokeDasharray="4 4" opacity=".8"/>
-            <rect x={tooltipX} y={top+6} width="190" height="124" rx="9"
-              fill="var(--panel)" stroke="var(--border)" strokeWidth="1.5"/>
-            <text x={tooltipX+12} y={top+27} fontSize="13" fontWeight="700" fill="var(--text)">
-              {String(highlightedHour).padStart(2,'0')}h–{String(highlightedHour).padStart(2,'0')}h59 · Total: {display(highlighted.total)}
+          {highlighted && highlightedHour!==null && <line pointerEvents="none"
+            x1={posX(highlightedHour)} x2={posX(highlightedHour)} y1={top} y2={top+height}
+            stroke="var(--muted)" strokeDasharray="4 4" opacity=".75"
+            style={{transition:'x1 170ms ease-out, x2 170ms ease-out, opacity 170ms ease-out'}}/>}
+          {highlighted && highlightedHour!==null && <g pointerEvents="none"
+            transform={`translate(${tooltipX} ${tooltipY})`}
+            style={{transition:'transform 160ms ease-out, opacity 160ms ease-out',opacity:1}}>
+            <rect x="0" y="0" width={tooltipWidth} height={tooltipHeight} rx="8"
+              fill="var(--panel)" stroke="var(--border)" strokeWidth="1"/>
+            <text x="11" y="19" fontSize="11.5" fontWeight="700" fill="var(--text)">
+              {String(highlightedHour).padStart(2,'0')}h–{String(highlightedHour).padStart(2,'0')}h59
+            </text>
+            <text x={tooltipWidth-11} y="19" textAnchor="end" fontSize="11.5" fontWeight="700" fill="var(--text)">
+              {display(highlighted.total)} total
             </text>
             {series.map((serie,i)=><g key={serie.key}>
-              <circle cx={tooltipX+18} cy={top+47+i*23} r="4" fill={serie.color}/>
-              <text x={tooltipX+30} y={top+51+i*23} fontSize="12" fill="var(--text)">{serie.label}</text>
-              <text x={tooltipX+177} y={top+51+i*23} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--text)">
+              <circle cx="14" cy={39+i*22} r="3.5" fill={serie.color}/>
+              <text x="24" y={43+i*22} fontSize="11" fill="var(--text)">{serie.label}</text>
+              <text x={tooltipWidth-11} y={43+i*22} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--text)">
                 {display(highlighted[serie.key])}
               </text>
             </g>)}
@@ -112,10 +132,11 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
             height={height+9} fill="transparent" style={{cursor:'crosshair'}}
             role="button" tabIndex={0}
             aria-label={String(v.hora).padStart(2,'0')+'h: '+display(v.total)+' chamadas; '+display(v.atendidas)+' atendidas, '+display(v.nao_atendidas)+' não atendidas, '+display(v.abandonadas)+' abandonadas'}
-            onMouseEnter={()=>setHovered(v.hora)}
-            onMouseLeave={()=>setHovered(null)}
-            onFocus={()=>setHovered(v.hora)}
-            onBlur={()=>setHovered(null)}
+            onMouseEnter={e=>{trackPointer(e);setHovered(v.hora);}}
+            onMouseMove={trackPointer}
+            onMouseLeave={()=>{setHovered(null);setPointer(null);}}
+            onFocus={()=>{setPointer(null);setHovered(v.hora);}}
+            onBlur={()=>{setHovered(null);setPointer(null);}}
             onClick={()=>{setSelected(v.hora);setHovered(null);}}
             onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(v.hora);setHovered(null);}}}
           />)}
@@ -135,7 +156,7 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
         </select>
         {active && <span role="status" style={{fontSize:12}}>{display(active.total)} no total · {display(active.atendidas)} atendidas · {display(active.nao_atendidas)} não atendidas · {display(active.abandonadas)} abandonadas{active.outras>0?' · '+display(active.outras)+' outras':''}</span>}
       </div>
-      <p style={{fontSize:11,opacity:.7,marginTop:12}}>Passe o mouse sobre o gráfico para ver os valores de cada hora. Clique, toque ou use Enter para fixar uma hora; o seletor abaixo também permite consultar os detalhes. Horário de Brasília; os filtros do dashboard são respeitados.</p>
+      <p style={{fontSize:11,opacity:.7,marginTop:12}}>Passe o mouse sobre o gráfico para ver o resumo compacto ao lado do cursor. Clique, toque ou use Enter para fixar uma hora; o seletor abaixo também permite consultar os detalhes. Horário de Brasília; os filtros do dashboard são respeitados.</p>
     </div>}
   </section>;
 }

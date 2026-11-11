@@ -21,8 +21,9 @@ export default function LoginPage() {
         setError(payload.error || 'Não foi possível autenticar.');
         return;
       }
+      const payload: { role?: string } = await response.json();
       setPassword('');
-      router.replace('/chamadas');
+      router.replace(payload.role==='administrador'?'/chamadas':'/configuracoes');
       router.refresh();
     } catch { setError('Não foi possível conectar ao serviço de autenticação.'); }
     finally { setPending(false); }

@@ -50,28 +50,28 @@ export default function DailyTimesChart(){
  const rows=snapshot?.key===key?snapshot.rows:null;
  const all=rows?.flatMap(r=>series.map(s=>r[s.key]).filter((v):v is number=>v!==null))??[];
  const ceiling=Math.max(60,Math.ceil(Math.max(0,...all)/60)*60);
- const left=45,top=24,width=850,height=235;
- const posX=(i:number)=>left+(rows&&rows.length>1?i/(rows.length-1):.5)*width;
+ const chartWidth=Math.max(920,(rows?.length??0)*29+76);
+ const left=45,top=24,width=chartWidth-left-25,height=235;
+ const slotWidth=rows?.length?width/rows.length:width;
+ const barWidth=Math.min(15,slotWidth*.32);
+ const barGap=Math.min(4,slotWidth*.08);
+ const groupWidth=barWidth*2+barGap;
+ const posX=(i:number)=>left+(i+.5)*slotWidth;
  const posY=(n:number)=>top+height-(n/ceiling)*height;
- const path=(field:typeof series[number]['key'])=>{
-  let drawing='',connected=false;
-  rows?.forEach((r,i)=>{const n=r[field];if(n===null){connected=false;return;}
-   drawing+=(connected?' L':' M')+posX(i).toFixed(1)+' '+posY(n).toFixed(1);connected=true;});
-  return drawing;
- };
+ const barX=(i:number,serieIndex:number)=>posX(i)-groupWidth/2+serieIndex*(barWidth+barGap);
  const highlighted=hovered??selected;
  const active=highlighted!==null?rows?.[highlighted]:null;
  const anchorX=pointer&&hovered!==null?pointer.x:highlighted!==null?posX(highlighted):left;
  const anchorY=pointer&&hovered!==null?pointer.y:75;
- const tooltipX=anchorX+170>920?Math.max(4,anchorX-166):anchorX+12;
+ const tooltipX=anchorX+170>chartWidth?Math.max(4,anchorX-166):anchorX+12;
  const tooltipY=Math.max(7,Math.min(325-93,anchorY-15));
  const move=(e:MouseEvent<SVGRectElement>)=>{
   const svg=e.currentTarget.ownerSVGElement;
   if(!svg)return;const bounds=svg.getBoundingClientRect();
-  if(bounds.width&&bounds.height)setPointer({x:(e.clientX-bounds.left)*920/bounds.width,y:(e.clientY-bounds.top)*325/bounds.height});
+  if(bounds.width&&bounds.height)setPointer({x:(e.clientX-bounds.left)*chartWidth/bounds.width,y:(e.clientY-bounds.top)*325/bounds.height});
  };
  return <section className="panel" style={{padding:20,marginBottom:18}}>
-  <div className="panel-head"><div><h2>TMA e TME diário</h2><p>Médias diárias de atendimento e espera · horário de Brasília</p></div></div>
+  <div className="panel-head"><div><h2>TMA e TME diário</h2><p>Colunas agrupadas por dia · médias de atendimento e espera · horário de Brasília</p></div></div>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
    {options.map(o=><button key={o.key} type="button" aria-pressed={period===o.key} className={period===o.key?'primary-button':'outline-button'} onClick={()=>setPeriod(o.key)}>{o.label}</button>)}
   </div>
@@ -83,19 +83,25 @@ export default function DailyTimesChart(){
   {loading&&<p role="status">Carregando médias diárias...</p>}
   {error&&<p role="alert">{error}</p>}
   {rows&&<div>
-   <div style={{width:'100%',overflowX:'auto'}} aria-label="Gráfico de TMA e TME por dia. Passe o mouse ou use o teclado para inspecionar os valores.">
-    <svg viewBox="0 0 920 325" style={{width:'100%',minWidth:600,display:'block'}} xmlns="http://www.w3.org/2000/svg">
+   <div style={{width:'100%',overflowX:'auto'}} aria-label="Gráfico de colunas agrupadas de TMA e TME por dia. Passe o mouse ou use o teclado para inspecionar os valores.">
+    <svg viewBox={`0 0 ${chartWidth} 325`} style={{width:'100%',minWidth:chartWidth>920?chartWidth:600,display:'block'}} xmlns="http://www.w3.org/2000/svg">
      {[0,1,2,3,4].map(i=>{const v=ceiling*i/4,y=posY(v);return <g key={i}>
       <line x1={left} x2={left+width} y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 4"/>
       <text x={left-8} y={y+4} textAnchor="end" fontSize="10" fill="var(--muted)">{Math.round(v)}</text>
      </g>;})}
      {rows.map((r,i)=>i%(rows.length>60?Math.ceil(rows.length/10):rows.length>15?Math.ceil(rows.length/12):1)===0||i===rows.length-1?
       <text key={r.dia} x={posX(i)} y={top+height+22} textAnchor="middle" fontSize="10" fill="var(--muted)">{r.dia.slice(8,10)+'/'+r.dia.slice(5,7)}</text>:null)}
-     {series.map(s=><g key={s.key}>
-      <path d={path(s.key)} stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      {rows.map((r,i)=>r[s.key]===null?null:<circle key={r.dia} cx={posX(i)} cy={posY(r[s.key]!)}
-       r={highlighted===i?5:3} stroke="var(--panel)" strokeWidth="1.3" fill={s.color}
-       style={{transition:'r 180ms ease-out'}}/>)}
+     {series.map((serie,serieIndex)=><g key={serie.key}>
+      {rows.map((r,i)=>{
+       const value=r[serie.key];
+       if(value===null)return null;
+       const y=posY(value);
+       return <rect key={r.dia} x={barX(i,serieIndex)} y={y}
+        width={barWidth} height={Math.max(0,top+height-y)}
+        rx={Math.min(2,barWidth/4)}
+        fill={serie.color} opacity={highlighted===null||highlighted===i?1:.65}
+        style={{transition:'opacity 180ms ease-out, fill 180ms ease-out'}}/>;
+      })}
      </g>)}
      {active&&highlighted!==null&&<g pointerEvents="none">
       <line x1={posX(highlighted)} x2={posX(highlighted)} y1={top} y2={top+height} stroke="var(--muted)" strokeDasharray="4 4"/>
@@ -109,8 +115,8 @@ export default function DailyTimesChart(){
        </g>)}
       </g>
      </g>}
-     {rows.map((r,i)=><rect key={r.dia} x={i===0?left-8:(posX(i-1)+posX(i))/2} y={top}
-      width={rows.length===1?width:Math.max(9,width/(rows.length-1))} height={height+6}
+     {rows.map((r,i)=><rect key={r.dia} x={left+i*slotWidth} y={top}
+      width={slotWidth} height={height+6}
       fill="transparent" style={{cursor:'crosshair'}} role="button" tabIndex={0}
       aria-label={r.dia+': TMA '+fmt(r.tma_segundos)+', TME '+fmt(r.tme_segundos)}
       onMouseEnter={e=>{move(e);setHovered(i);}} onMouseMove={move}
@@ -124,7 +130,7 @@ export default function DailyTimesChart(){
     {series.map(s=><span key={s.key} style={{display:'flex',gap:7,alignItems:'center',fontSize:12}}>
      <span style={{height:9,width:9,borderRadius:'50%',background:s.color}}/>{s.label}</span>)}
    </div>
-   <p style={{fontSize:11,opacity:.7,marginTop:12}}>Valores em segundos no eixo vertical; detalhes em mm:ss. Dias sem registros aparecem sem ponto. Passe o mouse para ver o tooltip ou selecione pelo teclado.</p>
+   <p style={{fontSize:11,opacity:.7,marginTop:12}}>Valores em segundos no eixo vertical; detalhes em mm:ss. Dias sem registros aparecem sem barras. Passe o mouse para ver o tooltip ou selecione pelo teclado.</p>
   </div>}
  </section>;
 }

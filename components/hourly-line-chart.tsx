@@ -31,11 +31,12 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
   const [selected,setSelected]=useState<number|null>(null);
+  const [hovered,setHovered]=useState<number|null>(null);
   const key=start+':'+end;
   useEffect(()=>{
     const controller=new AbortController();
     let active=true;
-    setLoading(true);setError('');setSelected(null);
+    setLoading(true);setError('');setSelected(null);setHovered(null);
     const load=async()=>{
       try {
         const res=await fetch('/api/chamadas/por-hora?start='+start+'&end='+end,{cache:'no-store',signal:controller.signal});
@@ -64,12 +65,15 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
     (i===0?'M':'L')+posX(v.hora).toFixed(2)+','+posY(v[field]).toFixed(2)
   ).join(' ') : '';
   const active=selected!==null && values ? values[selected] : null;
+  const highlightedHour=hovered ?? selected;
+  const highlighted=highlightedHour!==null && values ? values[highlightedHour] : null;
+  const tooltipX=highlightedHour===null ? 0 : Math.max(left+4,Math.min(left+width-190,posX(highlightedHour)-95));
   return <section className="panel" style={{padding:20,marginBottom:18}}>
     <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Gráfico de linhas · intervalos exatos de 1 hora · horário de Brasília</p></div></div>
     {loading && <p role="status" style={{fontSize:12}}>Atualizando dados horários...</p>}
     {error && <p role="alert" style={{fontSize:12}}>{error} Nenhum valor foi estimado a partir de intervalos de duas horas.</p>}
     {values && <div>
-      <div role="img" aria-label="Gráfico de linhas, com séries de chamadas atendidas, não atendidas e abandonadas em cada uma das 24 horas" style={{width:'100%',overflowX:'auto'}}>
+      <div role="img" aria-label="Gráfico de linhas interativo de chamadas por hora, com valores de atendidas, não atendidas e abandonadas. Use mouse, toque ou teclado para consultar as 24 horas." style={{width:'100%',overflowX:'auto'}}>
         <svg viewBox="0 0 920 325" style={{display:'block',width:'100%',minWidth:620,height:'auto'}} xmlns="http://www.w3.org/2000/svg">
           {[0,1,2,3,4].map(i=>{
             const val=ceiling*i/4,y=posY(val);
@@ -83,10 +87,38 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
           )}
           {series.map(s=><g key={s.key}>
             <path d={line(s.key)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            {values.map(v=><circle key={v.hora} cx={posX(v.hora)} cy={posY(v[s.key])} r="3.6" fill={s.color} stroke="var(--panel)" strokeWidth="1">
-              <title>{String(v.hora).padStart(2,'0')}h · {s.label}: {display(v[s.key])}</title>
-            </circle>)}
+            {values.map(v=><circle key={v.hora} cx={posX(v.hora)} cy={posY(v[s.key])}
+              r={highlightedHour===v.hora ? 5.5 : 3.6} fill={s.color} stroke="var(--panel)" strokeWidth="1.5"/>)}
           </g>)}
+          {highlighted && highlightedHour!==null && <g pointerEvents="none">
+            <line x1={posX(highlightedHour)} x2={posX(highlightedHour)} y1={top} y2={top+height}
+              stroke="var(--muted)" strokeDasharray="4 4" opacity=".8"/>
+            <rect x={tooltipX} y={top+6} width="190" height="124" rx="9"
+              fill="var(--panel)" stroke="var(--border)" strokeWidth="1.5"/>
+            <text x={tooltipX+12} y={top+27} fontSize="13" fontWeight="700" fill="var(--text)">
+              {String(highlightedHour).padStart(2,'0')}h–{String(highlightedHour).padStart(2,'0')}h59 · Total: {display(highlighted.total)}
+            </text>
+            {series.map((serie,i)=><g key={serie.key}>
+              <circle cx={tooltipX+18} cy={top+47+i*23} r="4" fill={serie.color}/>
+              <text x={tooltipX+30} y={top+51+i*23} fontSize="12" fill="var(--text)">{serie.label}</text>
+              <text x={tooltipX+177} y={top+51+i*23} textAnchor="end" fontSize="12" fontWeight="700" fill="var(--text)">
+                {display(highlighted[serie.key])}
+              </text>
+            </g>)}
+          </g>}
+          {values.map((v,i)=><rect key={v.hora}
+            x={i===0 ? left-12 : (posX(i-1)+posX(i))/2}
+            y={top} width={i===0 || i===23 ? (width/23)/2+12 : width/23}
+            height={height+9} fill="transparent" style={{cursor:'crosshair'}}
+            role="button" tabIndex={0}
+            aria-label={String(v.hora).padStart(2,'0')+'h: '+display(v.total)+' chamadas; '+display(v.atendidas)+' atendidas, '+display(v.nao_atendidas)+' não atendidas, '+display(v.abandonadas)+' abandonadas'}
+            onMouseEnter={()=>setHovered(v.hora)}
+            onMouseLeave={()=>setHovered(null)}
+            onFocus={()=>setHovered(v.hora)}
+            onBlur={()=>setHovered(null)}
+            onClick={()=>{setSelected(v.hora);setHovered(null);}}
+            onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(v.hora);setHovered(null);}}}
+          />)}
         </svg>
       </div>
       <div style={{display:'flex',gap:18,flexWrap:'wrap',justifyContent:'center',marginTop:4}}>
@@ -103,7 +135,7 @@ export default function HourlyLineChart({start,end,refreshKey}:{start:string;end
         </select>
         {active && <span role="status" style={{fontSize:12}}>{display(active.total)} no total · {display(active.atendidas)} atendidas · {display(active.nao_atendidas)} não atendidas · {display(active.abandonadas)} abandonadas{active.outras>0?' · '+display(active.outras)+' outras':''}</span>}
       </div>
-      <p style={{fontSize:11,opacity:.7,marginTop:12}}>Cada ponto corresponde à hora indicada (00h–00h59 até 23h–23h59). O gráfico respeita o período selecionado no topo do dashboard.</p>
+      <p style={{fontSize:11,opacity:.7,marginTop:12}}>Passe o mouse sobre o gráfico para ver os valores de cada hora. Clique, toque ou use Enter para fixar uma hora; o seletor abaixo também permite consultar os detalhes. Horário de Brasília; os filtros do dashboard são respeitados.</p>
     </div>}
   </section>;
 }

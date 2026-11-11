@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   try {
     if ((await verifySupabaseUser(token))?.role !== 'administrador') return NextResponse.json({error:'Acesso não autorizado.'},{status:403,headers:noStore});
     const {url,publishableKey} = getSupabaseServerConfig();
-    // A RPC deverá ser criada apenas após validar os eventos de fila e as permissões.
+    // A RPC consolida TMA/TME validados; abandono em fila continua NULL até validar eventos específicos.
     const response = await fetch(`${url}/rest/v1/rpc/dashboard_chamadas_tempos_e_filas`, {
       method:'POST',
       headers:{apikey:publishableKey,Authorization:`Bearer ${token}`,'Content-Type':'application/json',Accept:'application/json'},
@@ -44,12 +44,12 @@ export async function GET(request: Request) {
       cache:'no-store',
       signal:AbortSignal.timeout(15000),
     });
-    if (!response.ok) return NextResponse.json({metrics:null,status:'unavailable'},{headers:noStore});
+    if (!response.ok) return NextResponse.json({metrics:null,status:'unavailable',error:'Indicadores temporariamente indisponíveis.'},{status:503,headers:noStore});
     const payload: unknown = await response.json();
     const row: unknown = Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
-    if (!valid(row)) return NextResponse.json({metrics:null,status:'unavailable'},{headers:noStore});
+    if (!valid(row)) return NextResponse.json({metrics:null,status:'unavailable',error:'Formato inesperado da resposta.'},{status:502,headers:noStore});
     return NextResponse.json({metrics:row,status:'ready'},{headers:noStore});
   } catch {
-    return NextResponse.json({metrics:null,status:'unavailable'},{headers:noStore});
+    return NextResponse.json({metrics:null,status:'unavailable',error:'Não foi possível consultar os indicadores.'},{status:503,headers:noStore});
   }
 }

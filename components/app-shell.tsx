@@ -47,6 +47,7 @@ export default function AppShell({section,callView='geral',role}:{section:Sectio
         </div>
       </div>
     })}
+    {!admin && <div className="nav-no-access">Nenhum dashboard autorizado. Solicite acesso ao administrador.</div>}
     <Link href="/configuracoes" title="Configurações" className={`nav-item settings-direct-link ${section==='configuracoes'?'active':''}`} aria-current={section==='configuracoes'?'page':undefined}><span className="nav-settings-icon">{(() => { const Icon=sections.find(s=>s.slug==='configuracoes')!.icon;return <Icon size={18} strokeWidth={1.9}/> })()}</span><span className="nav-item-label">Configurações</span></Link>
    </nav>
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span className="sidebar-detail">{callsLive ? 'Chamadas · dados reais' : 'Ambiente visual de demonstração'}<br/><small>{callsLive ? 'Indicadores agregados do Supabase' : 'Sem conexão com dados reais'}</small></span></div><div className="account"><div className="avatar">AD</div><div className="sidebar-detail"><strong>{callsLive ? 'Usuário autenticado' : 'Usuário'}</strong><small>{callsLive ? 'Acesso autorizado' : 'Sessão autenticada'}</small></div><ChevronDown size={16}/></div></div>
@@ -58,7 +59,12 @@ export default function AppShell({section,callView='geral',role}:{section:Sectio
      <Link href="/chamadas?painel=tempos-diarios" className={`category-slide ${callView==='tempos-diarios'?'active':''}`} aria-current={callView==='tempos-diarios'?'page':undefined}>TMA e TME diário</Link>
    </nav>}
    
-   <SectionContent section={section} callView={callView} query={query} setQuery={setQuery}/>
+   {section==='configuracoes' ? <section className="panel settings-panel" aria-label="Preferências pessoais">
+     <div className="panel-head"><div><h2>Minhas preferências</h2><p>Personalize sua experiência sem alterar o ambiente de outros usuários.</p></div></div>
+     <div className="settings-body"><div><strong>Tema da interface</strong><p>Escolha o modo claro ou escuro. A preferência é mantida neste navegador.</p></div><div className="settings-theme-actions"><button type="button" className={`outline-button ${!dark?'selected-theme':''}`} aria-pressed={!dark} onClick={()=>setDark(false)}><Sun size={16}/> Claro</button><button type="button" className={`outline-button ${dark?'selected-theme':''}`} aria-pressed={dark} onClick={()=>setDark(true)}><Moon size={16}/> Escuro</button></div></div>
+     {admin && <div className="settings-body"><div><strong>Configurações globais</strong><p>Área reservada aos administradores. Alterações globais estarão disponíveis após definição e validação dos parâmetros persistentes.</p></div><span className="phase-tag">Planejado</span></div>}
+   </section> : <SectionContent section={section} callView={callView} query={query} setQuery={setQuery}/>}
+
    <footer className="footer"><span>dashboard_tools · Identidade visual v4.60</span><span>{callsLive ? 'Chamadas · indicadores reais agregados' : 'Fase 1 — Estrutura e interface · Sem dados reais'}</span></footer>
    </main>
   </div>

@@ -140,8 +140,13 @@ export default function CallDashboard() {
        label:'Taxa de abandono em fila',
        value:extra?.key===rangeKey && extra.status==='ready' && extra.metrics?.taxa_abandono_fila!=null
         ?extra.metrics.taxa_abandono_fila.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—',
-       detail:extra?.key===rangeKey && extra.metrics?.taxa_abandono_fila!=null
-        ?'Abandonos após entrada na fila':'Fonte de eventos de fila ainda não validada'
+       detail:extra?.key!==rangeKey
+        ?'Carregando taxa de abandono...'
+        :extra.status==='unavailable'
+         ?'Consulta indisponível · verificar RPC de indicadores'
+         :extra.metrics?.taxa_abandono_fila==null
+          ?'Sem base de cálculo no período ou atualização pendente'
+          :'Recebidas: ABANDON ÷ (ANSWERED + ABANDON)'
       },
       {
        label:'TMA · Tempo médio de atendimento',

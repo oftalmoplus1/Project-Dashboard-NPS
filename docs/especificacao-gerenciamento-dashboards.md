@@ -81,3 +81,29 @@ Organizar visualizações em `Meus Dashboards`, com tópicos definidos por admin
 - Validação de papel para usuários comuns: o autenticador atual só reconhece `admin` e `manager`; exigirá extensão antes de disponibilizar o terceiro perfil.
 - Plano de migração sem interrupção: avaliar grants existentes e manter ponto de retorno.
 - Testes funcionais reais no banco e no deploy, além do CI.
+
+## Resultado do inventario — 2026-11-11
+O CSV da consulta unificada retornou apenas 3 funcoes em `public`:
+`dashboard_chamadas_agregadas`, `dashboard_chamadas_por_hora` e `dashboard_chamadas_tempos_por_dia`.
+Nao apareceram tabelas, colunas ou politicas com os nomes candidatos utilizados na busca.
+**Limite:** esse inventario nao prova a inexistencia de estruturas com nomes diferentes nem valida o estado das funcoes privadas.
+
+## Implementacao incremental da Fase 2 — em codigo, ainda nao instalada no banco
+Arquivos versionados:
+1. `docs/sql/dashboard_catalogo_fase2_estrutura.sql`: esquema privado isolado e tabelas `topicos`, `dashboards`, `topico_dashboards`, `acesso_topicos`, `acesso_dashboards`, `auditoria`, com FKs, indices e RLS sem politicas de acesso direto.
+2. `docs/sql/dashboard_catalogo_fase2_topicos_api.sql`: RPC privada de listagem/criacao com verificacao de identidade e papel atual em `auth.users.raw_app_meta_data`, wrappers publicos `SECURITY INVOKER`, revogacao de `PUBLIC`/`anon`.
+3. `docs/sql/dashboard_catalogo_fase2_validacao.sql`: consultas read-only para verificar existencia, RLS e grants.
+4. `app/api/catalogo/topicos/route.ts`: GET por usuario autenticado e POST apenas para admin; sem `service_role`.
+5. `components/manage-topics.tsx`: listagem e criacao com estado de indisponibilidade segura caso a RPC nao esteja instalada.
+
+### Dependencias para ativacao
+- Conferir backup testado, permissao de implantacao e homologacao em staging.
+- Executar os dois scripts de instalacao, nessa ordem. Nao executar apenas o segundo.
+- Validar no SQL Editor com o terceiro script e testar GET/POST com conta admin, manager, anon.
+- Nao publicar o branch na producao antes de revisar a compatibilidade com o self-hosted e o fluxo de concessoes.
+- Catalogo de dashboards e grants continuam sem interface de criacao; tarefas seguintes da fase 2.
+- O projeto ainda nao oferece permissao a perfil de usuario comum; exige extensao do autenticador para `dashboard_role=user` com testes de regressao.
+
+### Testes ainda pendentes
+Aprovacao de lint, TypeScript e build no commit mais recente, e testes de integracao reais contra staging. A existencia dos arquivos nao equivale a instalacao do banco nem a criacao automatica de topicos.
+

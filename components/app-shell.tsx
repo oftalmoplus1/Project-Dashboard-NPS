@@ -53,7 +53,7 @@ export default function AppShell({section,callView='geral'}:{section:Section;cal
      <Link href="/chamadas" className={`category-slide ${callView==='geral'?'active':''}`} aria-current={callView==='geral'?'page':undefined}>Chamadas</Link>
      <Link href="/chamadas?painel=tempos-diarios" className={`category-slide ${callView==='tempos-diarios'?'active':''}`} aria-current={callView==='tempos-diarios'?'page':undefined}>TMA e TME diário</Link>
    </nav>}
-   {section!=='chamadas' && active.group!=='Workspace' && <nav className="category-slider" aria-label="Módulos da categoria">{sections.filter(item=>item.group===active.group && item.slug!=='inicio' && item.slug!=='dashboards').map(item=><Link key={item.slug} href={`/${item.slug}`} className={`category-slide ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}>{item.label}</Link>)}</nav>}
+   {section!=='chamadas' && active.group!=='Workspace' && <nav className="category-slider" aria-label="Módulos da categoria">{sections.filter(item=>item.group===active.group).map(item=><Link key={item.slug} href={`/${item.slug}`} className={`category-slide ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}>{item.label}</Link>)}</nav>}
    <SectionContent section={section} callView={callView} query={query} setQuery={setQuery}/>
    <footer className="footer"><span>dashboard_tools · Identidade visual v4.60</span><span>{callsLive ? 'Chamadas · indicadores reais agregados' : 'Fase 1 — Estrutura e interface · Sem dados reais'}</span></footer>
    </main>

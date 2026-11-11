@@ -179,3 +179,23 @@ A unidade de contagem deverá ser **ocorrência de atendimento na fila**, com ev
 - `docs/sql/diagnostico_taxa_abandono_fila.sql`: consulta única, somente leitura, identifica tabelas e colunas relacionadas a filas, e agrega cobertura de nome da fila/TEF por disposição e mês (sem PII).
 - Workflow e banco existentes **não foram alterados**; nenhuma taxa foi calculada nem publicada.
 - Próxima decisão após resultado: confirmar fonte de eventos de abandono e escopo de todas as filas ou filas específicas, sem inventar valores.
+
+## Regra de negocio revisada — indicador ABANDON (2026-11-11)
+
+**Especificacao mais recente, prevalece sobre a descoberta anterior:** usuario responsavel confirmou que o status `ABANDON` no relatorio de chamadas representa clientes que sairam da fila sem atendimento e **deve entrar no calculo**.
+
+- Universo da taxa: somente chamadas `call_direction = 'Recebida'`, no periodo selecionado em horario local de Brasilia.
+- Numerador: `COUNT(*) FILTER (WHERE disposition = 'ABANDON')`.
+- Denominador: `COUNT(*) FILTER (WHERE disposition IN ('ANSWERED','ABANDON'))`.
+- `NO ANSWER` nao e sinonimo de abandono e fica fora do denominador. Chamadas `Efetuada`/`Entre ramais` ficam fora da taxa.
+- Resultado: `100 * abandonadas / NULLIF(atendidas+abandonadas,0)`, arredondado a 2 casas; denominador zero => `NULL`, nunca `0%` artificial.
+- TMA e TME **nao mudam**: seguem `AVG(ta)` e `AVG(tet)` com chamadas externas `ANSWERED` (`Recebida` + `Efetuada`).
+- A autorizacao permanece admin-only por enquanto; gestores dependem da futura ACL contextual.
+- Criterio de aceite pendente: conferir contagem e taxa com o relatorio oficial LigSim para o mesmo periodo, pois houve evidencias historicas de `queuename` ausente. Caso aparecam eventos `ABANDON` anteriores a entrada na fila, rever a regra imediatamente.
+
+**Arquivos implementados:**
+- `docs/sql/dashboard_chamadas_abandono_por_status.sql` — atualiza SOMENTE a funcao privada consolidada, mantendo o contrato da RPC publica e as funcoes diarias intactas.
+- `docs/sql/dashboard_chamadas_abandono_por_status_validacao.sql` — consulta read-only de contagens e medias de outubro.
+- `components/call-dashboard.tsx` — apresenta formula e estados honestos para a taxa.
+
+**Ativacao:** nao executar o script legado de TMA/TME. Primeiro validar a consulta read-only e os totais no LigSim; conferir backup; aplicar o script novo em homologacao e conferir que `/api/chamadas/indicadores` exibe taxa, TMA/TME e autentica corretamente. Nao modificar workflow n8n para este calculo sem necessidade demonstrada.

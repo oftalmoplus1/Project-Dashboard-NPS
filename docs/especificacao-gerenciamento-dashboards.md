@@ -107,3 +107,21 @@ Arquivos versionados:
 ### Testes ainda pendentes
 Aprovacao de lint, TypeScript e build no commit mais recente, e testes de integracao reais contra staging. A existencia dos arquivos nao equivale a instalacao do banco nem a criacao automatica de topicos.
 
+
+## Fase 2 / Etapa 3 — associar dashboards existentes a topicos (2026-11-11)
+**Registro de evidencias:** CSV de verificacao do topico `Relatórios` apontou slug `relatorios`, 0 associacoes, 0 grants para usuarios, 0 grants para dashboards e 1 evento de auditoria `criar`.
+
+**Alteracoes versionadas, NAO instaladas no banco desta sessao:**
+- `docs/sql/dashboard_catalogo_fase2_vincular_existentes.sql`: acrescenta identificador estavel `codigo` a `dashboards` e funcoes de listar/vincular apenas os dois renderizadores existentes. Verificacao de `auth.uid()` e papel `admin` lido do `auth.users.raw_app_meta_data`; comandos transacionais com auditoria e idempotencia.
+- `docs/sql/dashboard_catalogo_fase2_vinculos_validacao.sql`: testes de existencia, grants, associacoes e auditoria.
+- `lib/dashboard-registry.ts`: codigos `visao-geral-chamadas` e `tma-tme-diario`.
+- `app/api/catalogo/topicos/[slug]/dashboards/route.ts`: consulta e vinculo com validacao no servidor; escrita apenas para admin.
+- `components/manage-topics.tsx`: gerenciador de associacoes no detalhe de cada topico.
+- `app/meus-dashboards/[slug]/page.tsx`: navega por topico usando dashboard contextual; temporariamente apenas admin ate a ACL ser integrada as APIs de chamadas.
+- `components/app-shell.tsx`: itens de Meus Dashboards oriundos do catalogo e menu slider no interior do topico.
+
+**Excecao explicitamente documentada:** os dois dashboards legados ja funcionavam/publicados antes do editor visual, portanto seu registro no catalogo pode assumir `publicado` somente apos acao administrativa explicita de vinculacao. O fluxo para **novos** graficos segue `rascunho -> revisao -> publicacao`. Nenhum vinculo cria grants para gerente ou usuario comum.
+
+**Ativacao segura:** ambiente de homologacao + backup recuperavel + revisao do SQL; executar somente o script novo, nunca os scripts antigos da estrutura (ja instalados), validar existencia e grants, vincular pelo app e verificar auditoria. Nao unir a `main` antes de homologar as rotas e bloqueio de gerente.
+
+**Proxima etapa:** interface de concessao individual contextual e verificacao end-to-end da autorizacao de APIs e graficos; depois editor visual de graficos e fluxo de publicacao.

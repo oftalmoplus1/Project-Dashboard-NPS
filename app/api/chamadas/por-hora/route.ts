@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const token=(await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return NextResponse.json({error:'Sessão necessária.'},{status:401,headers});
   try {
-    if (!await verifySupabaseUser(token))
+    if ((await verifySupabaseUser(token))?.role !== 'administrador')
       return NextResponse.json({error:'Acesso não autorizado.'},{status:403,headers});
     const {url,publishableKey}=getSupabaseServerConfig();
     const result=await fetch(url+'/rest/v1/rpc/dashboard_chamadas_por_hora',{

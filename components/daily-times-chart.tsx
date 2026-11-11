@@ -12,7 +12,7 @@ const series=[
  {key:'tma_segundos',label:'TMA',color:'#2d74ca'},
  {key:'tme_segundos',label:'TME',color:'#38964a'}
 ] as const;
-function fmt(n:number|null){return n===null?'Sem dados':Math.round(n/60).toString().padStart(2,'0')+':'+String(Math.round(n)%60).padStart(2,'0');}
+function fmt(n:number|null){if(n===null)return 'Sem dados';const seconds=Math.round(n);return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 export default function DailyTimesChart(){
  const [now,setNow]=useState<Date|null>(null);
  const [period,setPeriod]=useState<Period>('month');

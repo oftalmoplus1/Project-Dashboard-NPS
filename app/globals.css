@@ -34,3 +34,27 @@
 .sidebar-collapsed .settings-direct-link{justify-content:center;padding:11px 0}
 @media(max-width:760px){.sidebar-collapsed .nav-no-access{display:block}.sidebar-collapsed .settings-direct-link .nav-item-label{display:initial}.sidebar-collapsed .settings-direct-link{justify-content:flex-start;padding:11px 12px}}
 @media(max-width:620px){.settings-body{flex-direction:column;align-items:flex-start}.settings-theme-actions{flex-wrap:wrap}}
+
+/* Gerenciamento de topicos — fase 2: consulta e cadastro persistentes. */
+.manage-topics{max-width:1000px}
+.manage-topics-content{padding:22px}
+.topic-create-form{display:grid;gap:10px;border:1px solid var(--border);border-radius:12px;padding:18px}
+.topic-create-form>label{font-size:12px;font-weight:700}
+.topic-create-row{display:flex;align-items:stretch;gap:10px}
+.topic-create-row input{min-width:0;flex:1;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text);padding:11px 13px;font-size:13px}
+.topic-create-row input:disabled{opacity:.5}
+.topic-create-form>small{font-size:11px;color:var(--muted)}
+.topic-message{font-size:12px;line-height:1.5;padding:13px 15px;border-radius:9px;margin:0 0 16px}
+.topic-message p{margin:7px 0 0}
+.topic-error{color:#bd2935;background:rgba(189,41,53,.07);border:1px solid rgba(189,41,53,.2)}
+.topic-success{color:var(--teal);background:rgba(7,151,123,.07);border:1px solid rgba(7,151,123,.2)}
+.topic-list-header{display:flex;justify-content:space-between;align-items:center;margin-top:22px;margin-bottom:12px}
+.topic-list-header h3{font-size:14px;margin:0}
+.topic-empty{padding:19px;color:var(--muted);border:1px dashed var(--border);border-radius:10px;font-size:12px}
+.topic-list{display:grid;gap:9px}
+.topic-list-item{display:flex;gap:12px;align-items:center;border:1px solid var(--border);padding:14px 16px;border-radius:10px}
+.topic-list-item>svg{color:var(--teal)}
+.topic-list-item>div{flex:1;min-width:0;display:grid;gap:5px}
+.topic-list-item strong{font-size:12px}
+.topic-list-item small{font-size:11px;color:var(--muted)}
+@media(max-width:620px){.manage-topics-content{padding:14px}.topic-create-row{flex-direction:column}.topic-create-row .primary-button{justify-content:center}}

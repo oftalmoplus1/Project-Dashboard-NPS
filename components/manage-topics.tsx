@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck, ChevronDown, Link2 } from 'lucide-react';
+import Link from 'next/link';
+import { existingDashboards, type DashboardItem } from '@/lib/dashboard-registry';
 
 type Topico={
  id:string;
@@ -21,6 +23,10 @@ export default function ManageTopics(){
  const [name,setName]=useState('');
  const [saving,setSaving]=useState(false);
  const [message,setMessage]=useState('');
+ const [opened,setOpened]=useState<string|null>(null);
+ const [itemsByTopic,setItemsByTopic]=useState<Record<string,DashboardItem[]>>({});
+ const [loadingTopic,setLoadingTopic]=useState(false);
+ const [linking,setLinking]=useState('');
 
  const load=useCallback(async()=>{
   setLoading(true);
@@ -68,6 +74,49 @@ export default function ManageTopics(){
   }finally{setSaving(false);}
  }
 
+ async function loadDashboards(slug:string) {
+  setLoadingTopic(true);
+  setError('');
+  try {
+   const response=await fetch(`/api/catalogo/topicos/${slug}/dashboards`,{cache:'no-store'});
+   const data:{rows?:DashboardItem[];error?:string}=await response.json();
+   if(!response.ok||!Array.isArray(data.rows)){
+    setError(data.error??'Não foi possível carregar os dashboards do tópico.');
+    return;
+   }
+   setItemsByTopic(old=>({...old,[slug]:data.rows!}));
+  } catch {
+   setError('Não foi possível consultar os dashboards vinculados.');
+  } finally {setLoadingTopic(false);}
+ }
+ function toggleTopic(slug:string){
+  if(opened===slug){setOpened(null);return;}
+  setOpened(slug);
+  void loadDashboards(slug);
+ }
+ async function associate(slug:string,codigo:string){
+  if(linking)return;
+  setLinking(codigo);
+  setError('');
+  setMessage('');
+  try{
+   const response=await fetch(`/api/catalogo/topicos/${slug}/dashboards`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({codigo}),
+   });
+   const result:{error?:string}=await response.json();
+   if(!response.ok){
+    setError(result.error??'Não foi possível associar o dashboard.');
+    return;
+   }
+   setMessage('Dashboard associado sem duplicar dados nem conceder novas permissões.');
+   await Promise.all([load(),loadDashboards(slug)]);
+  }catch{
+   setError('Não foi possível concluir a associação.');
+  }finally{setLinking('');}
+ }
+
  return <section className="panel manage-topics" aria-label="Gerenciar tópicos">
   <div className="panel-head">
    <div>
@@ -81,7 +130,7 @@ export default function ManageTopics(){
   <div className="manage-topics-content">
    <div className="notice">
     <ShieldCheck size={17}/>
-    <span>Somente administradores criam tópicos. Gráficos e dashboards serão associados em uma próxima etapa.</span>
+    <span>Somente administradores criam tópicos e vinculam dashboards existentes. Cada associação preserva as permissões restritas.</span>
    </div>
    {error&&<div role="alert" className="topic-message topic-error">{error}
     {!ready&&<p>Se a estrutura ainda não foi instalada, o cadastro permanecerá indisponível até a validação do banco.</p>}
@@ -107,10 +156,38 @@ export default function ManageTopics(){
    {loading?<p className="topic-empty" role="status">Carregando catálogo...</p>
    :ready&&topicos.length===0?<p className="topic-empty">Nenhum tópico cadastrado.</p>
    :ready&&<div className="topic-list">
-     {topicos.map(t=><div className="topic-list-item" key={t.id}>
-      <Folder size={19}/>
-      <div><strong>{t.nome}</strong><small>{t.quantidade_dashboards} {t.quantidade_dashboards===1?'dashboard associado':'dashboards associados'}</small></div>
-      <span className="subtle-pill">#{t.posicao+1}</span>
+     {topicos.map(t=><div className="topic-list-group" key={t.id}>
+      <button type="button" className="topic-list-item topic-toggle" onClick={()=>toggleTopic(t.slug)} aria-expanded={opened===t.slug} aria-controls={`topic-details-${t.slug}`}>
+       <Folder size={19}/>
+       <span className="topic-list-info"><strong>{t.nome}</strong><small>{t.quantidade_dashboards} {t.quantidade_dashboards===1?'dashboard associado':'dashboards associados'}</small></span>
+       <span className="subtle-pill">#{t.posicao+1}</span>
+       <ChevronDown size={16} className={opened===t.slug?'topic-chevron expanded':'topic-chevron'}/>
+      </button>
+      {opened===t.slug&&<div id={`topic-details-${t.slug}`} className="topic-details">
+       <div className="topic-details-header">
+        <strong>Dashboards deste tópico</strong>
+        <Link href={`/meus-dashboards/${t.slug}`} className="outline-button">Abrir tópico</Link>
+       </div>
+       {loadingTopic?<p role="status">Carregando dashboards...</p>
+       :<>
+        {(itemsByTopic[t.slug]??[]).length===0
+         ?<p>Nenhum dashboard associado.</p>
+         :<ul className="topic-dashboard-items">
+          {(itemsByTopic[t.slug]??[]).map(d=><li key={d.codigo}><Link href={`/meus-dashboards/${t.slug}?dashboard=${d.codigo}`}>{d.nome}</Link><small>{d.estado}</small></li>)}
+         </ul>}
+        <div className="topic-association-options">
+         <strong>Adicionar dashboard existente</strong>
+         {existingDashboards.filter(d=>!(itemsByTopic[t.slug]??[]).some(current=>current.codigo===d.codigo)).map(d=>
+           <button type="button" key={d.codigo} className="outline-button"
+            onClick={()=>void associate(t.slug,d.codigo)} disabled={!!linking||loadingTopic}>
+            <Link2 size={15}/> {linking===d.codigo?'Associando...':d.nome}
+           </button>
+         )}
+         {existingDashboards.every(d=>(itemsByTopic[t.slug]??[]).some(current=>current.codigo===d.codigo))
+           &&<small>Todos os dashboards existentes estão associados.</small>}
+        </div>
+       </>}
+      </div>}
      </div>)}
    </div>}
   </div>

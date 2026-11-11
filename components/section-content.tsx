@@ -3,7 +3,7 @@ import CallDashboard from './call-dashboard';
 import { Activity, BarChart3, CheckCircle2, Clock3, Database, Layers3, MoreHorizontal, Plus, Search, ShieldCheck, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import type { Section } from '@/lib/navigation';
 
-type Props={section:Section;query:string;setQuery:(s:string)=>void};
+type Props={section:Section;callView?:'geral'|'tempos-diarios';query:string;setQuery:(s:string)=>void};
 const records=[
  {name:'Receita e desempenho',category:'Financeiro',updated:'Hoje, 09:24',status:'Publicado',color:'blue'},
  {name:'Visão comercial',category:'Vendas',updated:'Ontem, 17:45',status:'Publicado',color:'green'},
@@ -25,4 +25,13 @@ const content:Partial<Record<Section,{title:string;description:string;icon:Lucid
  configuracoes:{title:'Configurações do ambiente',description:'A identidade visual da empresa já foi aplicada. As configurações persistentes serão implementadas em fases futuras.',icon:Layers3,items:['Paleta institucional','Modo claro e escuro','Preferências do ambiente']}
 };
 function Module({section}:{section:Section}){const data=content[section];if(!data)return null;const Icon=data.icon;return <><div className="notice"><span className="notice-dot"/><span><strong>Módulo planejado.</strong> Esta tela é uma estrutura visual e ainda não executa operações de negócio.</span></div><section className="panel module-panel"><div className="module-icon"><Icon size={26}/></div><h2>{data.title}</h2><p>{data.description}</p><div className="feature-list">{data.items.map(item=><div key={item}><CheckCircle2 size={16}/>{item}</div>)}</div><div className="module-bottom"><span className="phase-tag">Integração funcional em fase futura</span></div></section></>}
-export default function SectionContent({section,query,setQuery}:Props){if(section==='inicio')return <Overview/>;if(section==='chamadas')return <CallDashboard/>;if(section==='dashboards')return <Dashboards query={query} setQuery={setQuery}/>;return <Module section={section}/>}
+function DailyTimesPending(){
+ return <section className="panel" style={{padding:24,minHeight:240}}>
+  <div className="panel-head"><div><h2>TMA e TME diário</h2><p>Evolução diária do tempo médio de atendimento e de espera · horário de Brasília</p></div></div>
+  <div role="status" style={{padding:'32px 0',color:'var(--muted)',fontSize:14}}>
+   Visualização em preparação: a função de TMA/TME diário será validada antes de conectar dados reais ao gráfico.
+   Nenhum valor estimado ou fictício será apresentado.
+  </div>
+ </section>;
+}
+export default function SectionContent({section,callView='geral',query,setQuery}:Props){if(section==='inicio')return <Overview/>;if(section==='chamadas')return callView==='tempos-diarios'?<DailyTimesPending/>:<CallDashboard/>;if(section==='dashboards')return <Dashboards query={query} setQuery={setQuery}/>;return <Module section={section}/>}

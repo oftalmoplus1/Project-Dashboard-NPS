@@ -8,7 +8,7 @@ import { sections, sectionDescriptions, type Section } from '@/lib/navigation';
 import SectionContent from './section-content';
 import LogoutButton from './logout-button';
 
-export default function AppShell({section}:{section:Section}){
+export default function AppShell({section,callView='geral'}:{section:Section;callView?:'geral'|'tempos-diarios'}){
  const pathname=usePathname();
  const [dark,setDark]=useState(false);
  const [themeReady,setThemeReady]=useState(false);
@@ -49,8 +49,12 @@ export default function AppShell({section}:{section:Section}){
   </aside>
   <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{active.label}</strong></div><div className="top-actions"><span className="demo-pill">Protótipo · Fase 1</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
    <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> VISÃO CORPORATIVA</div><h1>{active.label}</h1><p>{sectionDescriptions[section]}</p></div><div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div></div>
-   <nav className="category-slider" aria-label="Dashboards da categoria">{sections.filter(item=>item.group===active.group).map(item=><Link key={item.slug} href={`/${item.slug}`} className={`category-slide ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}>{item.label}</Link>)}</nav>
-   <SectionContent section={section} query={query} setQuery={setQuery}/>
+   {section==='chamadas' && <nav className="category-slider" aria-label="Dashboards de Visão Geral de Chamadas">
+     <Link href="/chamadas" className={`category-slide ${callView==='geral'?'active':''}`} aria-current={callView==='geral'?'page':undefined}>Chamadas</Link>
+     <Link href="/chamadas?painel=tempos-diarios" className={`category-slide ${callView==='tempos-diarios'?'active':''}`} aria-current={callView==='tempos-diarios'?'page':undefined}>TMA e TME diário</Link>
+   </nav>}
+   {section!=='chamadas' && active.group!=='Workspace' && <nav className="category-slider" aria-label="Módulos da categoria">{sections.filter(item=>item.group===active.group && item.slug!=='inicio' && item.slug!=='dashboards').map(item=><Link key={item.slug} href={`/${item.slug}`} className={`category-slide ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}>{item.label}</Link>)}</nav>}
+   <SectionContent section={section} callView={callView} query={query} setQuery={setQuery}/>
    <footer className="footer"><span>dashboard_tools · Identidade visual v4.60</span><span>{callsLive ? 'Chamadas · indicadores reais agregados' : 'Fase 1 — Estrutura e interface · Sem dados reais'}</span></footer>
    </main>
   </div>

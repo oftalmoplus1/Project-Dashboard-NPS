@@ -20,6 +20,11 @@ export default function CallDashboard() {
  const [refreshing, setRefreshing] = useState(false);
  const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[] } | null>(null);
  const [requestNumber, setRequestNumber] = useState(0);
+ const [extra, setExtra] = useState<{
+  key:string;
+  status:'ready'|'unavailable';
+  metrics:{taxa_abandono_fila:number|null;tma_segundos:number|null;tme_segundos:number|null}|null;
+ }|null>(null);
  useEffect(() => {
   setNow(new Date());
   const timer = window.setInterval(() => {
@@ -61,6 +66,43 @@ export default function CallDashboard() {
   void load();
   return () => { active = false; controller.abort(); };
  }, [rangeKey, requestNumber]);
+ useEffect(() => {
+  if (!rangeKey || !range) return;
+  const controller = new AbortController();
+  let active = true;
+  setExtra(null);
+  const unavailable=()=>{if(active&&!controller.signal.aborted)
+    setExtra({key:rangeKey,status:'unavailable',metrics:null});
+  };
+  const load = async () => {
+   try {
+    const response = await fetch(`/api/chamadas/indicadores?start=${range.start}&end=${range.end}`,{
+      cache:'no-store',signal:controller.signal
+    });
+    if (!response.ok) {unavailable();return;}
+    const result: unknown = await response.json();
+    if (!result || typeof result !== 'object' || !('metrics' in result)) {
+     unavailable();return;
+    }
+    const metrics=result.metrics;
+    if (!metrics || typeof metrics !== 'object') {unavailable();return;}
+    const m=metrics as Record<string,unknown>;
+    const numeric=(v:unknown)=>v===null||(typeof v==='number'&&Number.isFinite(v)&&v>=0);
+    if (!numeric(m.taxa_abandono_fila)||!numeric(m.tma_segundos)||!numeric(m.tme_segundos)
+        ||(m.taxa_abandono_fila!==null&&(m.taxa_abandono_fila as number)>100)) {
+     unavailable();return;
+    }
+    if(active) setExtra({
+     key:rangeKey,status:'ready',
+     metrics:metrics as {taxa_abandono_fila:number|null;tma_segundos:number|null;tme_segundos:number|null}
+    });
+   } catch {unavailable();}
+  };
+  void load();
+  return () => {active=false;controller.abort();};
+ },[rangeKey,requestNumber]);
+ const formatDuration = (seconds:number|null|undefined) => seconds == null ? '—' :
+  `${String(Math.floor(Math.round(seconds)/60)).padStart(2,'0')}:${String(Math.round(seconds)%60).padStart(2,'0')}`;
  const refresh = useCallback(() => {
   if (refreshing) return;
   setNow(new Date());
@@ -91,6 +133,48 @@ export default function CallDashboard() {
   {valid && <>
    <div className="stats-grid" style={{ marginBottom: 18 }}>
     {[{ label: 'Registros recebidos', value: number(valid.summary.total) }, { label: 'Atendidos', value: number(valid.summary.answered) }, { label: 'Sem atendimento', value: number(valid.summary.unanswered) }, { label: 'Abandonadas (geral)', value: number(valid.summary.abandoned) }, { label: 'Taxa de atendimento', value: valid.summary.answerRate === null ? '—' : valid.summary.answerRate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' }].map(card => <div className="stat-card" key={card.label}><div className="stat-top"><span>{card.label}</span></div><strong>{card.value}</strong><small>Registros operacionais · Supabase</small></div>)}
+   </div>
+   <div className="stats-grid" style={{marginBottom:18}}>
+    {[
+      {
+       label:'Taxa de abandono em fila',
+       value:extra?.key===rangeKey && extra.status==='ready' && extra.metrics?.taxa_abandono_fila!=null
+        ?extra.metrics.taxa_abandono_fila.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'%':'—',
+       detail:extra?.key!==rangeKey
+        ?'Carregando taxa de abandono...'
+        :extra.status==='unavailable'
+         ?'Consulta indisponível · verificar RPC de indicadores'
+         :extra.metrics?.taxa_abandono_fila==null
+          ?'Sem base de cálculo no período ou atualização pendente'
+          :'Recebidas: ABANDON ÷ (ANSWERED + ABANDON)'
+      },
+      {
+       label:'TMA · Tempo médio de atendimento',
+       value:extra?.key===rangeKey&&extra.status==='ready'
+        ?formatDuration(extra.metrics?.tma_segundos):'—',
+       detail:extra?.key!==rangeKey
+        ?'Carregando média de atendimento...'
+        :extra.status==='unavailable'
+         ?'Consulta indisponível · verificar RPC de tempos'
+         :extra.metrics?.tma_segundos===null
+          ?'Sem chamadas externas atendidas com TA válido':'Chamadas externas atendidas · TA'
+      },
+      {
+       label:'TME · Tempo médio de espera',
+       value:extra?.key===rangeKey&&extra.status==='ready'
+        ?formatDuration(extra.metrics?.tme_segundos):'—',
+       detail:extra?.key!==rangeKey
+        ?'Carregando média de espera...'
+        :extra.status==='unavailable'
+         ?'Consulta indisponível · verificar RPC de tempos'
+         :extra.metrics?.tme_segundos===null
+          ?'Sem chamadas externas atendidas com TET válido':'Chamadas externas atendidas · TET'
+      }
+    ].map(card=><div className="stat-card" key={card.label}>
+     <div className="stat-top"><span>{card.label}</span></div>
+     <strong>{card.value}</strong>
+     <small>{card.detail}</small>
+    </div>)}
    </div>
    <section className="panel" style={{ padding: 20 }}>
     <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>Colunas empilhadas · {valid.range.granularity === 'hour' ? 'das 8h às 24h, agrupadas a cada 2 horas' : valid.range.granularity === 'day' ? 'por dia' : 'por mês'}</p></div></div>

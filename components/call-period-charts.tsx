@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { RpcRow } from '@/lib/call-dashboard-aggregates';
+import HourlyLineChart from './hourly-line-chart';
 
 type Counts = { answered: number; unanswered: number; abandoned: number; other: number; total: number };
 const zero = (): Counts => ({ answered: 0, unanswered: 0, abandoned: 0, other: 0, total: 0 });
@@ -42,7 +43,6 @@ export default function CallPeriodCharts({ rows, rangeStart, rangeEnd, year, onY
   const [annualError, setAnnualError] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<number|null>(null);
-  const [selectedHour, setSelectedHour] = useState<number|null>(null);
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -83,20 +83,8 @@ export default function CallPeriodCharts({ rows, rangeStart, rangeEnd, year, onY
     const firstRecorded = annualReady.length ? Math.min(...annualReady.map(r => Number(r.periodo_inicio.slice(5,7)) - 1)) : 12;
     return { buckets, firstRecorded };
   }, [annualReady,year]);
-  const hourly = useMemo(() => {
-    const buckets = Array.from({length:12},zero);
-    for (const row of rows) {
-      const date = row.periodo_inicio.slice(0,10);
-      if (date < rangeStart || date > rangeEnd) continue;
-      const hour = Number(row.periodo_inicio.slice(11,13));
-      if (hour >= 0 && hour < 24 && hour % 2 === 0) add(buckets[hour/2],row);
-    }
-    return buckets;
-  },[rows,rangeStart,rangeEnd]);
   const maxMonth = Math.max(1,...(monthData?.buckets.map(b=>b.answered+b.unanswered+b.abandoned) ?? []));
-  const maxHour = Math.max(1,...hourly.map(b=>b.answered+b.unanswered+b.abandoned));
   const selectedMonthly = selectedMonth === null ? null : monthData?.buckets[selectedMonth];
-  const selectedHourly = selectedHour === null ? null : hourly[selectedHour];
   return <div>
     <section className="panel" style={{padding:20,marginBottom:18}}>
       <div className="panel-head"><div><h2>Chamadas por mês</h2><p>Comparativo mensal no ano selecionado · barras horizontais empilhadas</p></div>
@@ -131,29 +119,6 @@ export default function CallPeriodCharts({ rows, rangeStart, rangeEnd, year, onY
       {selectedMonthly && <p role="status" style={{fontSize:12,marginTop:14}}><strong>{months[selectedMonth!]}:</strong> {fmt(selectedMonthly.total)} chamadas · {fmt(selectedMonthly.answered)} atendidas · {fmt(selectedMonthly.unanswered)} sem atendimento · {fmt(selectedMonthly.abandoned)} abandonadas{selectedMonthly.other? ` · ${fmt(selectedMonthly.other)} outras`:''}.</p>}
       <p style={{fontSize:11,opacity:.7,marginTop:14}}>Os meses anteriores ao primeiro registro disponível e os meses futuros não representam volume zero. O mês corrente pode estar incompleto. Os dados seguem a classificação de chamadas recebidas do dashboard.</p>
     </section>
-    <section className="panel" style={{padding:20,marginBottom:18}}>
-      <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Distribuição no período selecionado · intervalos de 2 horas, conforme a consulta atual</p></div></div>
-      <Legend/>
-      <div tabIndex={0} aria-label="Gráfico por faixas horárias, com rolagem horizontal" style={{overflowX:'auto'}}>
-        <div style={{display:'flex',height:255,alignItems:'end',gap:10,minWidth:690,borderBottom:'1px solid var(--border)'}}>
-          {hourly.map((b,i)=>{
-            const known=b.answered+b.unanswered+b.abandoned;
-            return <button key={i} type="button" onClick={()=>setSelectedHour(selectedHour===i?null:i)} aria-pressed={selectedHour===i}
-              title={`${String(i*2).padStart(2,'0')}h–${String(i*2+2).padStart(2,'0')}h: ${b.total} chamadas`}
-              style={{flex:1,height:'100%',border:0,background:'transparent',color:'var(--text)',display:'flex',alignItems:'center',justifyContent:'end',flexDirection:'column',padding:'0 4px',outlineOffset:2}}>
-              <span style={{fontSize:10,marginBottom:6}}>{known?fmt(known):'·'}</span>
-              <span style={{height:196,width:'100%',display:'flex',flexDirection:'column',justifyContent:'end'}}>
-                <span style={{height:`${known/maxHour*188}px`,width:'100%',display:'flex',flexDirection:'column-reverse',overflow:'hidden',borderRadius:'5px 5px 0 0',boxShadow:selectedHour===i?'0 0 0 2px var(--teal)':'none'}}>
-                  {colors.map(c=><span key={c.key} style={{height:known?`${b[c.key]/known*100}%`:0,background:c.color}}/>)}
-                </span>
-              </span>
-              <span style={{fontSize:10,marginTop:9,height:22}}>{String(i*2).padStart(2,'0')}h</span>
-            </button>;
-          })}
-        </div>
-      </div>
-      {selectedHourly && <p role="status" style={{fontSize:12,marginTop:14}}><strong>{String(selectedHour!*2).padStart(2,'0')}h–{String(selectedHour!*2+2).padStart(2,'0')}h:</strong> {fmt(selectedHourly.total)} chamadas · {fmt(selectedHourly.answered)} atendidas · {fmt(selectedHourly.unanswered)} sem atendimento · {fmt(selectedHourly.abandoned)} abandonadas.</p>}
-      <p style={{fontSize:11,opacity:.7,marginTop:12}}>O gráfico utiliza as faixas de duas horas disponíveis na RPC atual, para não inventar números por hora. Um agrupamento exato de uma hora exigirá ajuste validado da RPC no Supabase.</p>
-    </section>
+    <HourlyLineChart start={rangeStart} end={rangeEnd} refreshKey={refreshKey}/>
   </div>;
 }

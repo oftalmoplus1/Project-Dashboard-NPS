@@ -5,11 +5,28 @@ import { SESSION_COOKIE } from '@/lib/server/auth-session';
 
 export const runtime = 'nodejs';
 
+// Public origin is explicitly configured for reverse proxies such as Coolify.
+// Do not trust arbitrary forwarded hosts as allowed origins.
+function getPublicOrigin(request: Request): string {
+  const configured = process.env.APP_ORIGIN?.trim();
+  if (!configured) return new URL(request.url).origin;
+  const parsed = new URL(configured);
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password ||
+      parsed.pathname !== '/' || parsed.search || parsed.hash) {
+    throw new Error('Invalid APP_ORIGIN.');
+  }
+  return parsed.origin;
+}
+
+
 export async function POST(request: Request) {
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) return NextResponse.json({ error: 'Formato inválido.' }, { status: 415 });
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  let publicOrigin: string;
+  try { publicOrigin = getPublicOrigin(request); }
+  catch { return NextResponse.json({ error: 'Origem publica configurada incorretamente.' }, { status: 503 }); }
+  if (origin && origin !== publicOrigin) return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
   let credentials: unknown;
   try { credentials = await request.json(); } catch { return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 }); }
   if (!credentials || typeof credentials !== 'object') return NextResponse.json({ error: 'Dados inválidos.' }, { status: 400 });
@@ -35,7 +52,7 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: 'Conta sem permissão para acessar este dashboard.' }, { status: 403 });
     const ttl = typeof session.expires_in === 'number' && Number.isFinite(session.expires_in) ? Math.max(1, Math.min(Math.floor(session.expires_in), 3600)) : 3600;
     const result = NextResponse.json({ ok: true, role: user.role }, { headers: { 'Cache-Control': 'no-store' } });
-    result.cookies.set(SESSION_COOKIE, session.access_token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: ttl });
+    result.cookies.set(SESSION_COOKIE, session.access_token, { httpOnly: true, secure: new URL(publicOrigin).protocol === 'https:', sameSite: 'lax', path: '/', maxAge: ttl });
     return result;
   } catch {
     return NextResponse.json({ error: 'Serviço de autenticação indisponível. Tente novamente.' }, { status: 503 });

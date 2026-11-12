@@ -1,0 +1,23 @@
+services:
+  dash-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SUPABASE_URL: http://supabase-kong:8000
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set in Coolify}
+      APP_ORIGIN: ${APP_ORIGIN:?Set in Coolify}
+    expose:
+      - "3000"
+    networks:
+      - coolify
+      - supabase_internal
+
+networks:
+  coolify:
+    external: true
+  supabase_internal:
+    external: true
+    name: adn0vs3hypn6zsxpzwpp3mnu

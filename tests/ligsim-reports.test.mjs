@@ -90,6 +90,18 @@ for (const bad of [
 ]) {
   test('reject malformed extension record', () => assert.throws(() => mod.parseExtensionResponse(bad)));
 }
+test('sanitized internal API rows keep exactly the validated extension and count', () => {
+  const rows = mod.parsePublicExtensionRows({ rows: [
+    { extension: '2001', answered: 8, secret: 'must not appear' },
+    { extension: '2002', answered: 14 },
+  ] });
+  assert.deepEqual(rows, [{ extension: '2002', answered: 14 }, { extension: '2001', answered: 8 }]);
+});
+test('public ramal response rejects unexpected vendor field shape', () => {
+  assert.throws(() => mod.parsePublicExtensionRows({ rows: [{ answered: '2001', total: 8 }] }));
+  assert.throws(() => mod.parsePublicExtensionRows({ rows: [{ extension: '2001', answered: -1 }] }));
+  assert.throws(() => mod.parsePublicExtensionRows({ rows: {} }));
+});
 test('SQL migration is guarded, non-destructive and includes both TEF definitions', () => {
   const sql = fs.readFileSync(path.join(root, 'docs/sql/tef-2026-11-19-guarded.sql'), 'utf8');
   for (const expected of ['BEGIN;', 'COMMIT;', 'AVG(r.tef)', 'dashboard_private.chamadas_tempos_por_dia',

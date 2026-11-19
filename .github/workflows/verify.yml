@@ -32,10 +32,20 @@ jobs:
       - run: npm run build
       - name: Validar rotas HTTP com Supabase simulado
         run: node tests/smoke-http.mjs
+      - name: Reutilizar navegador da versao fixada
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-headless-ubuntu24-playwright-1.56.1
       - name: Instalar navegador isolado para testes de interface
+        timeout-minutes: 4
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '30000'
         run: |
-          npm install --prefix "$RUNNER_TEMP/callcenter-browser" --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
-          node "$RUNNER_TEMP/callcenter-browser/node_modules/playwright/cli.js" install --with-deps chromium
+          npm install --prefix "$RUNNER_TEMP/callcenter-browser" --no-package-lock --ignore-scripts --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1 playwright@1.56.1
+          # Required runtime libraries are supplied by the pinned Ubuntu runner.
+          # Missing libraries still fail the mandatory browser launch below.
+          node "$RUNNER_TEMP/callcenter-browser/node_modules/playwright/cli.js" install chromium --only-shell
       - name: Validar design responsivo e navegacao com dados sinteticos
         run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/callcenter-browser/node_modules/playwright/index.mjs" node tests/smoke-call-center-design.mjs
       - name: Guardar capturas da interface de teste

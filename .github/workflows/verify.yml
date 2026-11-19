@@ -12,6 +12,7 @@ permissions:
 jobs:
   verificar:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,6 +20,14 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: Auditar dependencias de producao
+        run: npm audit --omit=dev --audit-level=high
+      - name: Relatorio de dependencias de desenvolvimento
+        continue-on-error: true
+        run: npm audit --json
+      - run: node --test tests/call-data.test.mjs
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
+      - name: Validar rotas HTTP com Supabase simulado
+        run: node tests/smoke-http.mjs

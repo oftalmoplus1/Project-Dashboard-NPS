@@ -2,123 +2,104 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { RpcRow } from '@/lib/call-dashboard-aggregates';
+import { annualRanges, localToday, monthlyData, parseAggregateRows, type ChartMetric } from '@/lib/call-chart-data';
 import HourlyLineChart from './hourly-line-chart';
 
-type Counts = { answered: number; unanswered: number; abandoned: number; other: number; total: number };
-const zero = (): Counts => ({ answered: 0, unanswered: 0, abandoned: 0, other: 0, total: 0 });
-const colors = [
-  { key: 'answered', label: 'Atendidas', color: '#12b981' },
-  { key: 'unanswered', label: 'Sem atendimento', color: '#f5b83d' },
-  { key: 'abandoned', label: 'Abandonadas', color: '#f05a73' },
+const series = [
+  { key: 'atendidas', label: 'Atendidas', color: '#12b981' },
+  { key: 'total', label: 'Recebidas', color: '#2d74ca' },
+  { key: 'abandonadas', label: 'Abandonadas', color: '#f05a73' },
 ] as const;
-const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const fmt = (value: number) => value.toLocaleString('pt-BR');
-function add(bucket: Counts, row: RpcRow) {
-  bucket.answered += row.atendidas;
-  bucket.unanswered += row.nao_atendidas;
-  bucket.abandoned += row.abandonadas;
-  bucket.other += row.outras;
-  bucket.total += row.total;
-}
-function validateRows(payload: unknown): RpcRow[] {
-  if (!payload || typeof payload !== 'object' || !('rows' in payload) || !Array.isArray(payload.rows)) throw new Error('Resposta mensal inválida.');
-  return payload.rows.map((r: unknown) => {
-    if (!r || typeof r !== 'object') throw new Error('Registro mensal inválido.');
-    const row = r as Record<string, unknown>;
-    if (typeof row.periodo_inicio !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:/.test(row.periodo_inicio) ||
-      !['total','atendidas','nao_atendidas','abandonadas','outras'].every(k => Number.isSafeInteger(row[k]) && (row[k] as number) >= 0) ||
-      row.total !== (row.atendidas as number) + (row.nao_atendidas as number) + (row.abandonadas as number) + (row.outras as number))
-      throw new Error('Contagens mensais inconsistentes.');
-    return row as RpcRow;
-  });
-}
-function Legend() {
-  return <div style={{display:'flex', gap:16, flexWrap:'wrap', marginBottom:16}}>
-    {colors.map(c => <span key={c.key} style={{display:'inline-flex',alignItems:'center',gap:6,fontSize:12}}><span style={{width:11,height:11,borderRadius:2,background:c.color}}/>{c.label}</span>)}
-  </div>;
-}
-export default function CallPeriodCharts({ rows, rangeStart, rangeEnd, year, onYearChange, currentYear, refreshKey }:
-  { rows: RpcRow[]; rangeStart: string; rangeEnd: string; year: number; onYearChange: (year:number)=>void; currentYear: number; refreshKey: number }) {
-  const [annual, setAnnual] = useState<{year:number;rows:RpcRow[]}|null>(null);
-  const [annualError, setAnnualError] = useState('');
+const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const fmt = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+type Props = {
+  rows: RpcRow[]; rangeStart: string; rangeEnd: string; year: number;
+  onYearChange: (year: number) => void; currentYear: number; refreshKey: number;
+};
+export default function CallPeriodCharts({ rangeStart, rangeEnd, year, onYearChange, currentYear, refreshKey }: Props) {
+  const asOf = localToday(new Date());
+  const snapshotKey = `${year}:${asOf}`;
+  const [annual, setAnnual] = useState<{ key: string; rows: RpcRow[] } | null>(null);
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<number|null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [meanMetric, setMeanMetric] = useState<ChartMetric>('total');
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
+    setLoading(true); setError(''); setSelectedMonth(null);
     const load = async () => {
-      setLoading(true); setAnnualError('');
       try {
-        // A RPC fornece intervalos de duas horas. Consultas bimestrais evitam
-        // exceder limites de linhas do PostgREST ao consultar um ano inteiro.
-        const ranges = Array.from({length:6},(_,index) => {
-          const first = index*2+1;
-          const start = `${year}-${String(first).padStart(2,'0')}-01`;
-          const end = new Date(Date.UTC(year,first+1,0)).toISOString().slice(0,10);
-          return {start,end};
-        });
-        const groups = await Promise.all(ranges.map(async ({start,end}) => {
-          const response = await fetch(`/api/chamadas?start=${start}&end=${end}`,{cache:'no-store',signal:controller.signal});
-          if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Acesso não autorizado.' : 'Não foi possível consultar o ano.');
-          return validateRows(await response.json());
+        const ranges = annualRanges(year, asOf);
+        const groups = await Promise.all(ranges.map(async range => {
+          const response = await fetch(`/api/chamadas?start=${range.start}&end=${range.end}`, {
+            cache: 'no-store', signal: controller.signal,
+          });
+          if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+              if (active) setAnnual(null);
+              throw new Error('Acesso nao autorizado.');
+            }
+            throw new Error('Nao foi possivel consultar todos os meses.');
+          }
+          return parseAggregateRows(await response.json(), range);
         }));
-        if (active) setAnnual({year,rows:groups.flat()});
-      } catch (error) {
-        if (active && !controller.signal.aborted) setAnnualError(error instanceof Error ? error.message : 'Erro ao consultar os meses.');
+        const all = groups.flat();
+        monthlyData(all, year, asOf);
+        if (active) setAnnual({ key: snapshotKey, rows: all });
+      } catch (cause) {
+        if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Falha na consulta mensal.');
       } finally { if (active) setLoading(false); }
     };
     void load();
     return () => { active = false; controller.abort(); };
-  }, [year,refreshKey]);
-  const annualReady = annual?.year === year ? annual.rows : null;
-  const monthData = useMemo(() => {
-    if (!annualReady) return null;
-    const buckets = Array.from({length:12}, zero);
-    for (const row of annualReady) {
-      const date = row.periodo_inicio.slice(0,10);
-      if (!date.startsWith(String(year))) continue;
-      const month = Number(date.slice(5,7)) - 1;
-      if (month >= 0 && month < 12) add(buckets[month],row);
-    }
-    const firstRecorded = annualReady.length ? Math.min(...annualReady.map(r => Number(r.periodo_inicio.slice(5,7)) - 1)) : 12;
-    return { buckets, firstRecorded };
-  }, [annualReady,year]);
-  const maxMonth = Math.max(1,...(monthData?.buckets.map(b=>b.answered+b.unanswered+b.abandoned) ?? []));
-  const selectedMonthly = selectedMonth === null ? null : monthData?.buckets[selectedMonth];
+  }, [year, asOf, snapshotKey, refreshKey]);
+  const data = useMemo(() => annual?.key === snapshotKey ? monthlyData(annual.rows, year, asOf) : null,
+    [annual, snapshotKey, year, asOf]);
+  const max = Math.max(1, ...(data?.buckets.map(row => row.total) ?? []));
+  const mean = data?.averages[meanMetric] ?? null;
+  const meanLabel = series.find(item => item.key === meanMetric)!.label;
+  const selected = selectedMonth === null ? null : data?.buckets[selectedMonth];
   return <div>
-    <section className="panel" style={{padding:20,marginBottom:18}}>
-      <div className="panel-head"><div><h2>Chamadas por mês</h2><p>Comparativo mensal no ano selecionado · barras horizontais empilhadas</p></div>
-        <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>Ano
-          <select aria-label="Selecionar ano do gráfico mensal" value={year} onChange={e=>{onYearChange(Number(e.target.value));setSelectedMonth(null);}}
-            style={{padding:8,border:'1px solid var(--border)',borderRadius:8,background:'var(--panel)',color:'var(--text)'}}>
-            {Array.from({length:5},(_,i)=>currentYear-i).map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-        </label>
+    <section className="panel" style={{ padding: 20, marginBottom: 18 }}>
+      <div className="panel-head"><div><h2>Chamadas por mês</h2><p>Barras horizontais agrupadas; recebidas incluem todas as situações.</p></div>
+        <label>Ano <select aria-label="Selecionar ano do grafico mensal" value={year} onChange={event => onYearChange(Number(event.target.value))}>
+          {Array.from({ length: 5 }, (_, index) => currentYear - index).map(value => <option key={value}>{value}</option>)}
+        </select></label>
       </div>
-      <Legend/>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+        {series.map(item => <span key={item.key} style={{ fontSize: 12 }}>
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 11, height: 11, marginRight: 6, background: item.color }} />{item.label}
+        </span>)}
+        <label style={{ fontSize: 12 }}>Média de <select aria-label="Serie da media mensal" value={meanMetric}
+          onChange={event => setMeanMetric(event.target.value as ChartMetric)}>
+          {series.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select></label>
+      </div>
       {loading && <p role="status">Atualizando comparação mensal...</p>}
-      {annualError && <p role="alert">{annualError}</p>}
-      {monthData && <div style={{display:'grid',gap:10}}>
-        {monthData.buckets.map((b,i)=>{
-          const known=b.answered+b.unanswered+b.abandoned;
-          const future = year===currentYear && i > Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',month:'numeric'}).format(new Date()))-1;
-          const withoutHistory = i < monthData.firstRecorded || future;
-          return <div key={i} style={{display:'grid',gridTemplateColumns:'36px minmax(0,1fr) 75px',gap:12,alignItems:'center'}}>
-            <span style={{fontSize:12}}>{months[i]}</span>
-            <button type="button" aria-label={`${months[i]}: ${withoutHistory?'sem histórico disponível':`${b.answered} atendidas, ${b.unanswered} sem atendimento, ${b.abandoned} abandonadas, ${b.other} outras`}`}
-              aria-pressed={selectedMonth===i} disabled={withoutHistory} onClick={()=>setSelectedMonth(selectedMonth===i?null:i)}
-              style={{border:0,padding:0,width:'100%',height:19,display:'flex',background:'var(--soft)',borderRadius:3,overflow:'hidden',cursor:withoutHistory?'default':'pointer',outlineOffset:3,boxShadow:selectedMonth===i?'0 0 0 2px var(--teal)':'none'}}>
-              {known>0 && <div style={{display:'flex',width:`${known/maxMonth*100}%`,height:'100%'}}>
-                {colors.map(c=><span key={c.key} style={{width:`${b[c.key]/known*100}%`,background:c.color}}/>)}
-              </div>}
+      {error && <p role="alert">{error} {data ? 'Exibindo a ultima consulta valida para este mesmo ano e corte.' : ''}</p>}
+      {data && <div style={{ display: 'grid', gap: 12 }}>
+        {data.buckets.map((row, index) => {
+          const available = row.status === 'recorded' || row.status === 'partial';
+          return <div key={index} style={{ display: 'grid', gridTemplateColumns: '36px minmax(0,1fr) 90px', gap: 12, alignItems: 'center' }}>
+            <span style={{ fontSize: 12 }}>{months[index]}</span>
+            <button type="button" disabled={!available} aria-pressed={selectedMonth === index}
+              aria-label={`${months[index]}: ${available ? `${row.total} recebidas, ${row.atendidas} atendidas, ${row.abandonadas} abandonadas` : row.status === 'future' ? 'mes futuro' : 'sem registros; cobertura nao comprovada'}`}
+              onClick={() => setSelectedMonth(selectedMonth === index ? null : index)}
+              style={{ position: 'relative', display: 'grid', gap: 3, width: '100%', height: 45, padding: 0, border: 0,
+                background: 'var(--soft)', cursor: available ? 'pointer' : 'default', outlineOffset: 3 }}>
+              {series.map(item => <span key={item.key} style={{ height: 13, width: `${available ? row[item.key] / max * 100 : 0}%`, background: item.color }} />)}
+              {available && mean !== null && <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0,
+                left: `${mean / max * 100}%`, borderLeft: '2px dashed var(--text)', pointerEvents: 'none' }} />}
             </button>
-            <span style={{textAlign:'right',fontSize:11,opacity:.75}}>{withoutHistory?'Sem dados':fmt(b.total)}</span>
+            <span style={{ fontSize: 11, textAlign: 'right' }}>{available ? `${fmt(row.total)}${row.status === 'partial' ? ' (parcial)' : ''}` : row.status === 'future' ? 'Futuro' : 'Sem registros'}</span>
           </div>;
         })}
       </div>}
-      {selectedMonthly && <p role="status" style={{fontSize:12,marginTop:14}}><strong>{months[selectedMonth!]}:</strong> {fmt(selectedMonthly.total)} chamadas · {fmt(selectedMonthly.answered)} atendidas · {fmt(selectedMonthly.unanswered)} sem atendimento · {fmt(selectedMonthly.abandoned)} abandonadas{selectedMonthly.other? ` · ${fmt(selectedMonthly.other)} outras`:''}.</p>}
-      <p style={{fontSize:11,opacity:.7,marginTop:14}}>Os meses anteriores ao primeiro registro disponível e os meses futuros não representam volume zero. O mês corrente pode estar incompleto. Os dados seguem a classificação de chamadas recebidas do dashboard.</p>
+      {selected && <p role="status" style={{ fontSize: 12 }}>{months[selected.month]}: {fmt(selected.total)} recebidas; {fmt(selected.atendidas)} atendidas; {fmt(selected.abandonadas)} abandonadas; {fmt(selected.nao_atendidas)} sem atendimento; {fmt(selected.outras)} outras.</p>}
+      <p style={{ fontSize: 12 }}>{mean === null ? 'Media indisponivel: nenhum mes encerrado com registros.' : `Linha tracejada: media de ${meanLabel.toLowerCase()} = ${fmt(mean)}, em ${data?.meanMonthCount} meses encerrados com registros.`}</p>
+      <p style={{ fontSize: 11, opacity: .75 }}>Mês corrente, meses futuros e meses sem registros não entram na média. Ausência de registros não comprova volume zero. A presença de dados também não comprova a integração completa do histórico.</p>
     </section>
-    <HourlyLineChart start={rangeStart} end={rangeEnd} refreshKey={refreshKey}/>
+    <HourlyLineChart start={rangeStart} end={rangeEnd} refreshKey={refreshKey} />
   </div>;
 }

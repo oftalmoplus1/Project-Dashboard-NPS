@@ -1,162 +1,100 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { parseHourlyRows, sumCounts, type HourRow, type ChartMetric } from '@/lib/call-chart-data';
 
-type HourRow = {hora:number; total:number; atendidas:number; nao_atendidas:number; abandonadas:number; outras:number};
 const series = [
-  {key:'atendidas',label:'Atendidas',color:'#2d74ca'},
-  {key:'nao_atendidas',label:'Não atendidas',color:'#38964a'},
-  {key:'abandonadas',label:'Abandonadas',color:'#d65f33'}
+  { key: 'atendidas', label: 'Atendidas', color: '#12b981' },
+  { key: 'total', label: 'Recebidas', color: '#2d74ca' },
+  { key: 'abandonadas', label: 'Abandonadas', color: '#f05a73' },
 ] as const;
-const display = (n:number) => n.toLocaleString('pt-BR');
-function parseRows(value:unknown):HourRow[] {
-  if (!value || typeof value!=='object' || !('rows' in value) || !Array.isArray(value.rows))
-    throw new Error('Resposta horária inválida.');
-  const rows:HourRow[] = value.rows;
-  const seen=new Set<number>();
-  for (const row of rows) {
-    if (!row || !Number.isInteger(row.hora) || row.hora<0 || row.hora>23 || seen.has(row.hora) ||
-      !['total','atendidas','nao_atendidas','abandonadas','outras'].every(key=>{
-        const n=row[key as keyof HourRow];
-        return Number.isSafeInteger(n) && n>=0;
-      }) ||
-      row.total!==row.atendidas+row.nao_atendidas+row.abandonadas+row.outras)
-      throw new Error('Contagens horárias inconsistentes.');
-    seen.add(row.hora);
-  }
-  return rows;
-}
-export default function HourlyLineChart({start,end,refreshKey}:{start:string;end:string;refreshKey:number}) {
-  const [snapshot,setSnapshot]=useState<{key:string;rows:HourRow[]}|null>(null);
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState('');
-  const [selected,setSelected]=useState<number|null>(null);
-  const [hovered,setHovered]=useState<number|null>(null);
-  const [pointer,setPointer]=useState<{x:number;y:number}|null>(null);
-  const key=start+':'+end;
-  useEffect(()=>{
-    const controller=new AbortController();
-    let active=true;
-    setLoading(true);setError('');setSelected(null);setHovered(null);setPointer(null);
-    const load=async()=>{
+const fmt = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+export default function HourlyLineChart({ start, end, refreshKey }: { start: string; end: string; refreshKey: number }) {
+  const key = `${start}:${end}`;
+  const [snapshot, setSnapshot] = useState<{ key: string; rows: HourRow[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState<number | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [meanMetric, setMeanMetric] = useState<ChartMetric>('total');
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true); setError(''); setSelected(null); setHovered(null);
+    const load = async () => {
       try {
-        const res=await fetch('/api/chamadas/por-hora?start='+start+'&end='+end,{cache:'no-store',signal:controller.signal});
-        if (!res.ok) throw new Error(res.status===401||res.status===403?'Sessão expirada ou acesso negado.':'Agregação por hora ainda indisponível.');
-        const rows=parseRows(await res.json());
-        if (active) setSnapshot({key,rows});
-      } catch(e) {
-        if(active && !controller.signal.aborted) setError(e instanceof Error?e.message:'Falha ao carregar o gráfico.');
-      } finally {if(active)setLoading(false);}
+        const response = await fetch(`/api/chamadas/por-hora?start=${start}&end=${end}`, { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            if (active) setSnapshot(null);
+            throw new Error('Sessao expirada ou acesso negado.');
+          }
+          throw new Error('Agregacao por hora indisponivel.');
+        }
+        const rows = parseHourlyRows(await response.json());
+        sumCounts(rows);
+        if (active) setSnapshot({ key, rows });
+      } catch (cause) {
+        if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Falha na consulta horaria.');
+      } finally { if (active) setLoading(false); }
     };
     void load();
-    return ()=>{active=false;controller.abort();};
-  },[key,start,end,refreshKey]);
-  const values=useMemo(()=>{
-    if(snapshot?.key!==key)return null;
-    const hours=Array.from({length:24},(_,hour)=>({hora:hour,total:0,atendidas:0,nao_atendidas:0,abandonadas:0,outras:0}));
-    for(const item of snapshot.rows)hours[item.hora]=item;
-    return hours;
-  },[snapshot,key]);
-  const max=Math.max(1,...(values?.flatMap(v=>series.map(s=>v[s.key]))??[0]));
-  const ceiling=Math.max(4,Math.ceil(max/4)*4);
-  const left=48,top=18,width=842,height=245;
-  const posX=(hour:number)=>left+hour/23*width;
-  const posY=(n:number)=>top+height-(n/ceiling)*height;
-  const line=(field:typeof series[number]['key']) => values ? values.map((v,i)=>
-    (i===0?'M':'L')+posX(v.hora).toFixed(2)+','+posY(v[field]).toFixed(2)
-  ).join(' ') : '';
-  const active=selected!==null && values ? values[selected] : null;
-  const highlightedHour=hovered ?? selected;
-  const highlighted=highlightedHour!==null && values ? values[highlightedHour] : null;
-  const tooltipWidth=174, tooltipHeight=108;
-  const anchorX=pointer && hovered!==null ? pointer.x : highlightedHour===null ? left : posX(highlightedHour);
-  const anchorY=pointer && hovered!==null ? pointer.y : top+55;
-  const tooltipX=anchorX+tooltipWidth+22>920 ? Math.max(4,anchorX-tooltipWidth-14) : anchorX+14;
-  const tooltipY=Math.max(8,Math.min(325-tooltipHeight-8,anchorY-24));
-  const trackPointer=(event:React.MouseEvent<SVGRectElement>)=>{
-    const svg=event.currentTarget.ownerSVGElement;
-    if (!svg) return;
-    const bounds=svg.getBoundingClientRect();
-    if (!bounds.width || !bounds.height) return;
-    setPointer({x:(event.clientX-bounds.left)*920/bounds.width,y:(event.clientY-bounds.top)*325/bounds.height});
-  };
-  return <section className="panel" style={{padding:20,marginBottom:18}}>
-    <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Gráfico de linhas · intervalos exatos de 1 hora · horário de Brasília</p></div></div>
-    {loading && <p role="status" style={{fontSize:12}}>Atualizando dados horários...</p>}
-    {error && <p role="alert" style={{fontSize:12}}>{error} Nenhum valor foi estimado a partir de intervalos de duas horas.</p>}
-    {values && <div>
-      <div role="img" aria-label="Gráfico de linhas interativo de chamadas por hora, com valores de atendidas, não atendidas e abandonadas. Use mouse, toque ou teclado para consultar as 24 horas." style={{width:'100%',overflowX:'auto'}}>
-        <svg viewBox="0 0 920 325" style={{display:'block',width:'100%',minWidth:620,height:'auto'}} xmlns="http://www.w3.org/2000/svg">
-          {[0,1,2,3,4].map(i=>{
-            const val=ceiling*i/4,y=posY(val);
-            return <g key={i}>
-              <line x1={left} x2={left+width} y1={y} y2={y} stroke="var(--border)" strokeDasharray="3 4"/>
-              <text x={left-10} y={y+4} textAnchor="end" fontSize="11" fill="var(--muted)">{display(val)}</text>
-            </g>;
-          })}
-          {Array.from({length:24},(_,i)=>i).filter(h=>h%2===0||h===23).map(h=>
-            <text key={h} x={posX(h)} y={top+height+24} textAnchor="middle" fontSize="11" fill="var(--muted)">{String(h).padStart(2,'0')}h</text>
-          )}
-          {series.map(s=><g key={s.key}>
-            <path d={line(s.key)} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            {values.map(v=><circle key={v.hora} cx={posX(v.hora)} cy={posY(v[s.key])}
-              r={highlightedHour===v.hora ? 5.5 : 3.6} fill={s.color} stroke="var(--panel)" strokeWidth="1.5"
-              style={{transition:'r 180ms ease-out'}}/>)}
+    return () => { active = false; controller.abort(); };
+  }, [start, end, key, refreshKey]);
+  const rows = snapshot?.key === key ? snapshot.rows : null;
+  const total = useMemo(() => rows ? sumCounts(rows) : null, [rows]);
+  const mean = total ? total[meanMetric] / 24 : null;
+  const ceiling = Math.max(4, Math.ceil(Math.max(1, ...(rows?.map(row => row.total) ?? [])) / 4) * 4);
+  const x = (hour: number) => 48 + hour / 23 * 842;
+  const y = (count: number) => 263 - count / ceiling * 245;
+  const highlight = hovered ?? selected;
+  const activeRow = highlight === null ? null : rows?.[highlight];
+  const selectedRow = selected === null ? null : rows?.[selected];
+  const meanLabel = series.find(item => item.key === meanMetric)!.label;
+  return <section className="panel" style={{ padding: 20, marginBottom: 18 }}>
+    <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Volume acumulado em cada faixa de 1 hora no período selecionado; horário de Brasília.</p></div></div>
+    {loading && <p role="status">Atualizando dados horários...</p>}
+    {error && <p role="alert">{error} {rows ? 'Exibindo a ultima consulta valida para o mesmo periodo.' : 'Nenhum valor foi estimado ou substituido por zero.'}</p>}
+    {rows && <>
+      <div style={{ overflowX: 'auto' }}>
+        <svg viewBox="0 0 920 315" role="group" aria-label="Chamadas recebidas, atendidas e abandonadas por hora; selecione uma hora para detalhar"
+          style={{ display: 'block', width: '100%', minWidth: 620, height: 'auto' }}>
+          {[0, 1, 2, 3, 4].map(index => <g key={index}>
+            <line x1={48} x2={890} y1={y(ceiling * index / 4)} y2={y(ceiling * index / 4)} stroke="var(--border)" strokeDasharray="3 4" />
+            <text x={38} y={y(ceiling * index / 4) + 4} textAnchor="end" fontSize={11} fill="var(--muted)">{fmt(ceiling * index / 4)}</text>
           </g>)}
-          {highlighted && highlightedHour!==null && <line pointerEvents="none"
-            x1={posX(highlightedHour)} x2={posX(highlightedHour)} y1={top} y2={top+height}
-            stroke="var(--muted)" strokeDasharray="4 4" opacity=".75"
-            style={{transition:'x1 170ms ease-out, x2 170ms ease-out, opacity 170ms ease-out'}}/>}
-          {highlighted && highlightedHour!==null && <g pointerEvents="none"
-            transform={`translate(${tooltipX} ${tooltipY})`}
-            style={{transition:'transform 160ms ease-out, opacity 160ms ease-out',opacity:1}}>
-            <rect x="0" y="0" width={tooltipWidth} height={tooltipHeight} rx="8"
-              fill="var(--panel)" stroke="var(--border)" strokeWidth="1"/>
-            <text x="11" y="19" fontSize="11.5" fontWeight="700" fill="var(--text)">
-              {String(highlightedHour).padStart(2,'0')}h–{String(highlightedHour).padStart(2,'0')}h59
-            </text>
-            <text x={tooltipWidth-11} y="19" textAnchor="end" fontSize="11.5" fontWeight="700" fill="var(--text)">
-              {display(highlighted.total)} total
-            </text>
-            {series.map((serie,i)=><g key={serie.key}>
-              <circle cx="14" cy={39+i*22} r="3.5" fill={serie.color}/>
-              <text x="24" y={43+i*22} fontSize="11" fill="var(--text)">{serie.label}</text>
-              <text x={tooltipWidth-11} y={43+i*22} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--text)">
-                {display(highlighted[serie.key])}
-              </text>
-            </g>)}
+          {rows.filter(row => row.hora % 2 === 0 || row.hora === 23).map(row => <text key={row.hora} x={x(row.hora)} y={287} textAnchor="middle" fontSize={11} fill="var(--muted)">{row.hora}h</text>)}
+          {mean !== null && <line x1={48} x2={890} y1={y(mean)} y2={y(mean)} stroke="var(--text)" strokeWidth={1.5} strokeDasharray="7 5"><title>Média de {meanLabel.toLowerCase()}: {fmt(mean)}</title></line>}
+          {series.map(item => <g key={item.key}>
+            <path d={rows.map((row, index) => `${index ? 'L' : 'M'}${x(row.hora)},${y(row[item.key])}`).join(' ')} fill="none" stroke={item.color} strokeWidth={2.5} />
+            {rows.map(row => <circle key={row.hora} cx={x(row.hora)} cy={y(row[item.key])} r={highlight === row.hora ? 5 : 3} fill={item.color} />)}
+          </g>)}
+          {highlight !== null && <line x1={x(highlight)} x2={x(highlight)} y1={18} y2={263} stroke="var(--muted)" strokeDasharray="4 4" />}
+          {activeRow && <g pointerEvents="none" transform={`translate(${Math.min(x(activeRow.hora) + 10, 700)} 25)`}>
+            <rect width={195} height={105} rx={8} fill="var(--panel)" stroke="var(--border)" />
+            <text x={10} y={20} fontSize={12} fill="var(--text)">{activeRow.hora}h - {activeRow.hora}h59</text>
+            {series.map((item, index) => <text key={item.key} x={10} y={42 + index * 23} fontSize={12} fill="var(--text)">{item.label}: {fmt(activeRow[item.key])}</text>)}
           </g>}
-          {values.map((v,i)=><rect key={v.hora}
-            x={i===0 ? left-12 : (posX(i-1)+posX(i))/2}
-            y={top} width={i===0 || i===23 ? (width/23)/2+12 : width/23}
-            height={height+9} fill="transparent" style={{cursor:'crosshair'}}
-            role="button" tabIndex={0}
-            aria-label={String(v.hora).padStart(2,'0')+'h: '+display(v.total)+' chamadas; '+display(v.atendidas)+' atendidas, '+display(v.nao_atendidas)+' não atendidas, '+display(v.abandonadas)+' abandonadas'}
-            onMouseEnter={e=>{trackPointer(e);setHovered(v.hora);}}
-            onMouseMove={trackPointer}
-            onMouseLeave={()=>{setHovered(null);setPointer(null);}}
-            onFocus={()=>{setPointer(null);setHovered(v.hora);}}
-            onBlur={()=>{setHovered(null);setPointer(null);}}
-            onClick={()=>{setSelected(v.hora);setHovered(null);}}
-            onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(v.hora);setHovered(null);}}}
-          />)}
+          {rows.map(row => <rect key={row.hora} x={Math.max(36, x(row.hora) - 18)} y={18} width={36} height={250}
+            fill="transparent" role="button" tabIndex={0} aria-pressed={selected === row.hora}
+            aria-label={`${row.hora}h: ${row.total} recebidas, ${row.atendidas} atendidas, ${row.abandonadas} abandonadas`}
+            onMouseEnter={() => setHovered(row.hora)} onMouseLeave={() => setHovered(null)}
+            onFocus={() => setHovered(row.hora)} onBlur={() => setHovered(null)}
+            onClick={() => setSelected(selected === row.hora ? null : row.hora)}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(selected === row.hora ? null : row.hora); } }} />)}
         </svg>
       </div>
-      <div style={{display:'flex',gap:18,flexWrap:'wrap',justifyContent:'center',marginTop:4}}>
-        {series.map(s=><span key={s.key} style={{display:'flex',alignItems:'center',gap:7,fontSize:12}}>
-          <span style={{height:9,width:9,borderRadius:'50%',background:s.color}}/>{s.label}
-        </span>)}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18 }}>
+        {series.map(item => <span key={item.key} style={{ fontSize: 12 }}><span aria-hidden="true" style={{ display: 'inline-block', width: 9, height: 9, marginRight: 6, background: item.color }} />{item.label}</span>)}
+        <label>Média de <select aria-label="Serie da media horaria" value={meanMetric} onChange={event => setMeanMetric(event.target.value as ChartMetric)}>
+          {series.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select></label>
+        <label>Detalhar hora <select aria-label="Detalhar hora" value={selected ?? ''} onChange={event => setSelected(event.target.value === '' ? null : Number(event.target.value))}>
+          <option value="">Selecione</option>{rows.map(row => <option key={row.hora} value={row.hora}>{row.hora}h</option>)}
+        </select></label>
       </div>
-      <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',marginTop:16}}>
-        <label htmlFor="hour-detail" style={{fontSize:12}}>Detalhar hora</label>
-        <select id="hour-detail" value={selected??''} onChange={e=>setSelected(e.target.value===''?null:Number(e.target.value))}
-          style={{background:'var(--panel)',color:'var(--text)',border:'1px solid var(--border)',padding:8,borderRadius:8}}>
-          <option value="">Selecione uma hora</option>
-          {values.map(row=><option key={row.hora} value={row.hora}>{String(row.hora).padStart(2,'0')}h</option>)}
-        </select>
-        {active && <span role="status" style={{fontSize:12}}>{display(active.total)} no total · {display(active.atendidas)} atendidas · {display(active.nao_atendidas)} não atendidas · {display(active.abandonadas)} abandonadas{active.outras>0?' · '+display(active.outras)+' outras':''}</span>}
-      </div>
-      <p style={{fontSize:11,opacity:.7,marginTop:12}}>Passe o mouse sobre o gráfico para ver o resumo compacto ao lado do cursor. Clique, toque ou use Enter para fixar uma hora; o seletor abaixo também permite consultar os detalhes. Horário de Brasília; os filtros do dashboard são respeitados.</p>
-    </div>}
+      {selectedRow && <p role="status">{fmt(selectedRow.total)} recebidas; {fmt(selectedRow.atendidas)} atendidas; {fmt(selectedRow.abandonadas)} abandonadas; {fmt(selectedRow.nao_atendidas)} sem atendimento; {fmt(selectedRow.outras)} outras.</p>}
+      <p style={{ fontSize: 12 }}>Linha tracejada: média de {meanLabel.toLowerCase()} entre as 24 faixas = {mean === null ? '—' : fmt(mean)}. Não representa média por dia nem tempo de espera. O dia atual pode estar parcial.</p>
+    </>}
   </section>;
 }

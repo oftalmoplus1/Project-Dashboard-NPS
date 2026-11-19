@@ -68,7 +68,7 @@ try {
     await delay(100);
   }
   assert.ok(ready, 'Application readiness');
-  for (const route of ['/api/chamadas', '/api/chamadas/por-hora', '/api/chamadas/indicadores', '/api/chamadas/tempos-por-dia']) {
+  for (const route of ['/api/chamadas', '/api/chamadas/por-hora', '/api/chamadas/indicadores', '/api/chamadas/tempos-por-dia', '/api/chamadas/ramais']) {
     await check(`session required: ${route}`, async () => assert.equal((await request(route + query)).status, 401));
   }
   for (const token of ['manager-test-session', 'expired-test-session', 'unprivileged-test-session']) {
@@ -95,7 +95,27 @@ try {
   await check('accept proven empty result', async () => { mode = 'empty'; const response = await request('/api/chamadas' + query, 'admin-test-session'); assert.equal(response.status, 200); assert.deepEqual((await response.json()).rows, []); });
   mode = 'normal';
   await check('hourly route returns complete 24-hour data', async () => { const response = await request('/api/chamadas/por-hora' + query, 'admin-test-session'); assert.equal(response.status, 200); assert.equal((await response.json()).rows.length, 24); });
-  await check('legacy time route remains compatible', async () => { const response = await request('/api/chamadas/indicadores' + query, 'admin-test-session'); assert.equal(response.status, 200); assert.equal((await response.json()).metrics.tma_segundos, 90); });
+  await check('legacy time route remains compatible but is explicitly not TEF', async () => {
+    const response = await request('/api/chamadas/indicadores' + query, 'admin-test-session');
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.metrics.tma_segundos, 90);
+    assert.equal(data.tme_semantics, 'tet_legacy');
+  });
+  await check('daily time route labels legacy wait explicitly', async () => {
+    const response = await request('/api/chamadas/tempos-por-dia' + query, 'admin-test-session');
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.tme_semantics, 'tet_legacy');
+    assert.equal(data.rows.length, 2);
+  });
+  await check('extension endpoint requires admin and never uses service role', async () => {
+    for (const role of ['manager-test-session', 'expired-test-session']) {
+      assert.equal((await request('/api/chamadas/ramais' + query, role)).status, 403);
+    }
+    const response = await request('/api/chamadas/ramais' + query, 'admin-test-session');
+    assert.equal(response.status, 503); // integration intentionally absent in synthetic CI
+  });
   console.log(`HTTP_SMOKE_PASSED=${passed}; source=synthetic; production_validation=false`);
 } catch (error) {
   console.error(logs);

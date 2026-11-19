@@ -69,3 +69,16 @@ export function parseExtensionResponse(payload: unknown): ExtensionCount[] {
   });
   return out.sort((a, b) => b.answered - a.answered || a.extension.localeCompare(b.extension));
 }
+
+/** Validate the sanitized response returned by our own authenticated route. */
+export function parsePublicExtensionRows(payload: unknown): ExtensionCount[] {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Resposta interna de ramais invalida.');
+  const rows = (payload as Record<string, unknown>).rows;
+  if (!Array.isArray(rows)) throw new Error('Lista de ramais ausente.');
+  const mapped = rows.map(raw => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Ramal invalido.');
+    const row = raw as Record<string, unknown>;
+    return { answered: row.extension, total: row.answered };
+  });
+  return parseExtensionResponse({ data: { data: mapped } });
+}

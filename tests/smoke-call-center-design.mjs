@@ -176,7 +176,9 @@ try {
 
     // Real production condition: current year is present and prior year has no records.
     previousMissing = true;
-    await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
+    // Reload only the annual comparison; keep overview snapshot independent.
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year - 1));
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year));
     await page.getByText('Um dos anos não contém registros.', { exact: false }).waitFor();
     assert.equal(await page.getByTestId('annual-column-total-' + (year - 1)).count(), 0);
     assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);

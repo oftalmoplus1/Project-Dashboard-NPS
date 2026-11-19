@@ -97,7 +97,7 @@ try {
   await check('duration switches to hh:mm:ss and TEF is never substituted by TET', async () => {
     await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).waitFor();
     const text = await page.getByRole('region', { name: 'TME de fila', exact: true }).innerText();
-    assert.match(text, /Aguardando integra/); assert.ok(!text.includes('00:40'));
+    assert.match(text, /Aguardando validação SQL/); assert.ok(!text.includes('00:40'));
   });
   await check('only overview is rendered initially; no monthly or hourly requests', async () => {
     assert.equal(await page.getByRole('tab').count(), 5);

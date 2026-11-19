@@ -136,14 +136,35 @@ try {
     await page.getByRole('button', { name: 'Hoje', exact: true }).click();
     await totals.getByText('120', { exact: true }).waitFor();
   });
-  await check('pending integrations have explanations instead of invented charts', async () => {
-    await page.waitForLoadState('networkidle');
-    const before = rpcRequests;
+  await check('annual graph compares equivalent periods and displays variations', async () => {
+    await page.route('**/api/chamadas?*', async route => {
+      const u = new URL(route.request().url());
+      const date = u.searchParams.get('start');
+      const perYear = Number(date.slice(0, 4));
+      const count = perYear === year - 1 ? 120 : 60;
+      await route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ rows: [{ periodo_inicio: date + 'T08:00:00',
+          total: count, atendidas: count / 2, abandonadas: count / 4, nao_atendidas: count / 4, outras: 0 }] }) });
+    });
     await page.getByRole('tab', { name: /Comparativo anual/ }).click();
-    assert.match(await page.getByRole('tabpanel').innerText(), /Aguardando integra/);
+    await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
+    await page.getByText('Variação:', { exact: false }).first().waitFor();
+    assert.match(await page.getByRole('tabpanel').innerText(), /100%/);
+    await page.unroute('**/api/chamadas?*');
+  });
+  await check('extension chart displays only validated source results after explicit filter', async () => {
+    await page.route('**/api/chamadas/ramais?*', async route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [
+        { extension: '2001', answered: 8 }, { extension: '2002', answered: 14 },
+      ] }),
+    }));
     await page.getByRole('tab', { name: /Por ramal/ }).click();
-    assert.match(await page.getByRole('tabpanel').innerText(), /Nenhum nome, ramal ou volume foi estimado/);
-    assert.equal(rpcRequests, before);
+    await page.getByRole('heading', { name: 'Chamadas atendidas por ramal', exact: true }).waitFor();
+    assert.equal(await page.getByText('2002', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Consultar', exact: true }).click();
+    await page.getByText('2002', { exact: true }).waitFor();
+    assert.equal(await page.getByText('14', { exact: true }).count(), 1);
+    await page.unroute('**/api/chamadas/ramais?*');
   });
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   for (const width of [375, 768, 1440]) await check(`no document overflow at ${width}px`, async () => {

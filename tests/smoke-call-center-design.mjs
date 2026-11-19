@@ -152,6 +152,8 @@ try {
           total: count, atendidas: count / 2, abandonadas: count / 4, nao_atendidas: count / 4, outras: 0 }] }) });
     });
     await page.getByRole('tab', { name: /Comparativo anual/ }).click();
+    // Monthly tab intentionally retains an older year: select the target year explicitly.
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year));
     await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
     const chart = page.getByTestId('annual-vertical-chart');
     await chart.waitFor();

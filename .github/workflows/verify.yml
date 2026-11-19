@@ -19,6 +19,11 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: Auditar dependencias de producao
+        run: npm audit --omit=dev --audit-level=high
+      - name: Relatorio de dependencias de desenvolvimento
+        continue-on-error: true
+        run: npm audit --json
       - run: node --test tests/call-data.test.mjs
       - run: npm run lint
       - run: npm run typecheck

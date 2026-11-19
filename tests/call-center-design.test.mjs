@@ -28,9 +28,9 @@ test('custom topic names are preserved', () => {
   assert.equal(lib.callCenterTopicLabel({ slug: 'outro', nome: 'Relatórios' }), 'Relatórios');
 });
 test('topic rename handles legacy accents and surrounding spaces', () => assert.equal(lib.callCenterTopicLabel({ slug: 'relatorios', nome: ' RELATORIOS ' }), 'Call Center'));
-test('five unique tabs, only two pending integrations', () => {
+test('five unique tabs, annual and extension enabled with explicit errors', () => {
   assert.equal(new Set(lib.CALL_CENTER_TABS.map(tab => tab.id)).size, 5);
-  assert.deepEqual(lib.CALL_CENTER_TABS.filter(tab => tab.pending).map(tab => tab.id), ['annual', 'extension']);
+  assert.deepEqual(lib.CALL_CENTER_TABS.filter(tab => tab.pending).map(tab => tab.id), []);
 });
 test('keyboard arrows wrap without activating network queries', () => {
   assert.equal(lib.nextCallTabIndex(4, 'ArrowRight'), 0);

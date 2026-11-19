@@ -52,7 +52,7 @@ let page;
 const check = async (name, run) => { await run(); passed++; console.log(`ok ${passed} - ${name}`); };
 const settleLayout = async () => {
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'), { timeout: 2000 });
+  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'), undefined, { timeout: 2000 });
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 };
 const measureViewport = () => page.evaluate(() => ({
@@ -175,13 +175,14 @@ try {
   });
   await check('transient error preserves same-period values with an explicit warning', async () => {
     mode = 'error'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    await page.getByRole('alert').waitFor();
+    const alert = page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'consulta válida' });
+    await alert.waitFor();
     assert.ok(await totals.getByText('120', { exact: true }).isVisible());
-    assert.match(await page.getByRole('alert').innerText(), /consulta válida/);
+    assert.match(await alert.innerText(), /consulta válida/);
   });
   await check('access denial clears all visible volume and time values', async () => {
     mode = 'denied'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    await page.getByRole('alert').filter({ hasText: 'Sessão expirada' }).waitFor();
+    await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'Sessão expirada' }).waitFor();
     assert.equal(await totals.getByText('120', { exact: true }).count(), 0);
     assert.equal(await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).count(), 0);
   });

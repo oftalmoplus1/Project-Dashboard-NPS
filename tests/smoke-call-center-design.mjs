@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
 // Playwright is isolated in RUNNER_TEMP: no application dependency or lockfile change.
@@ -48,7 +48,22 @@ const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start',
 let logs = '';
 for (const stream of [app.stdout, app.stderr]) stream.on('data', chunk => { logs = (logs + chunk).slice(-12000); });
 let browser;
+let page;
 const check = async (name, run) => { await run(); passed++; console.log(`ok ${passed} - ${name}`); };
+const settleLayout = async () => {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'), { timeout: 2000 });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+};
+const measureViewport = () => page.evaluate(() => ({
+  viewport: window.innerWidth,
+  document: document.documentElement.scrollWidth,
+  elements: [...document.querySelectorAll('body *')].map(el => {
+    const rect = el.getBoundingClientRect();
+    const css = getComputedStyle(el);
+    return { tag: el.tagName, class: typeof el.className === 'string' ? el.className : '', left: rect.left, right: rect.right, width: rect.width, overflowX: css.overflowX, display: css.display };
+  }).filter(el => el.width > 0 && el.right > window.innerWidth + 2).slice(0, 30),
+}));
 try {
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -59,7 +74,7 @@ try {
   assert.ok(ready);
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, locale: 'pt-BR', reducedMotion: 'reduce' });
-  const page = await context.newPage();
+  page = await context.newPage();
   page.setDefaultTimeout(12000);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -133,14 +148,22 @@ try {
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   for (const width of [375, 768, 1440]) await check(`no document overflow at ${width}px`, async () => {
     await page.setViewportSize({ width, height: 1000 });
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2));
+    const immediate = await measureViewport();
+    await settleLayout();
+    const settled = await measureViewport();
+    console.log('VIEWPORT_DIAGNOSTIC=' + JSON.stringify({ width, immediate, settled }));
+    await page.screenshot({ path: `artifacts/call-center-design/overview-${width}.png`, fullPage: true });
+    assert.ok(settled.document <= width + 2, `Document ${settled.document}px exceeds viewport ${width}px`);
     if (width === 375) {
       const boxes = await totals.locator('dd').evaluateAll(els => els.map(el => ({ top: el.getBoundingClientRect().top, right: el.getBoundingClientRect().right })));
       assert.ok(boxes[0].top < boxes[1].top && boxes[1].top < boxes[2].top);
       await page.screenshot({ path: 'artifacts/call-center-design/mobile-overview.png', fullPage: true });
       await page.getByRole('tab', { name: 'Por hora', exact: true }).click();
       await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).waitFor();
-      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2));
+      await settleLayout();
+      const hourly = await measureViewport();
+      console.log('HOURLY_VIEWPORT_DIAGNOSTIC=' + JSON.stringify(hourly));
+      assert.ok(hourly.document <= width + 2);
       await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
     }
   });
@@ -165,6 +188,11 @@ try {
   await check('no uncaught browser errors', async () => assert.deepEqual(pageErrors, []));
   console.log(`CALL_CENTER_BROWSER_PASSED=${passed}; fixtures=synthetic; production_validation=false`);
 } catch (error) {
+  if (page) {
+    await mkdir('artifacts/call-center-design', { recursive: true });
+    await page.screenshot({ path: 'artifacts/call-center-design/failure.png', fullPage: true }).catch(() => {});
+    await writeFile('artifacts/call-center-design/failure-layout.json', JSON.stringify(await measureViewport(), null, 2)).catch(() => {});
+  }
   console.error(logs);
   throw error;
 } finally {

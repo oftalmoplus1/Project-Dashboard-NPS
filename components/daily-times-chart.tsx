@@ -8,16 +8,13 @@ const options:{key:Period;label:string}[]=[
  {key:'last7',label:'Últimos 7 dias'},{key:'month',label:'Este mês'},
  {key:'custom',label:'Personalizado'}
 ];
-const series=[
- {key:'tma_segundos',label:'TMA',color:'#2d74ca'},
- {key:'tme_segundos',label:'TME',color:'#38964a'}
-] as const;
+
 function fmt(n:number|null){if(n===null)return 'Sem dados';const seconds=Math.round(n);return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 export default function DailyTimesChart(){
  const [now,setNow]=useState<Date|null>(null);
  const [period,setPeriod]=useState<Period>('month');
  const [start,setStart]=useState('');const [end,setEnd]=useState('');
- const [snapshot,setSnapshot]=useState<{key:string;rows:DayRow[]}|null>(null);
+ const [snapshot,setSnapshot]=useState<{key:string;rows:DayRow[];semantics:'tef'|'tet_legacy'}|null>(null);
  const [loading,setLoading]=useState(false);const [error,setError]=useState('');
  const [hovered,setHovered]=useState<number|null>(null);
  const [selected,setSelected]=useState<number|null>(null);
@@ -37,17 +34,24 @@ export default function DailyTimesChart(){
   async function load(){
    try{
     const result=await fetch('/api/chamadas/tempos-por-dia?start='+range!.start+'&end='+range!.end,{cache:'no-store',signal:controller.signal});
-    if(!result.ok)throw new Error(result.status===401||result.status===403?'Sessão expirada ou acesso negado.':'Dados diários indisponíveis. Valide a função SQL no Supabase.');
+    if(!result.ok){if((result.status===401||result.status===403)&&active)setSnapshot(null);throw new Error(result.status===401||result.status===403?'Sessão expirada ou acesso negado.':'Dados diários indisponíveis. Valide a função SQL no Supabase.');}
     const payload:unknown=await result.json();
     if(!payload||typeof payload!=='object'||!('rows' in payload)||!Array.isArray(payload.rows))
      throw new Error('Resposta diária inválida.');
-    if(active)setSnapshot({key,rows:payload.rows as DayRow[]});
+    const semantics = 'tme_semantics' in payload ? payload.tme_semantics : null;
+    if(semantics!=='tef'&&semantics!=='tet_legacy')throw new Error('Semântica dos tempos não verificada.');
+    if(active)setSnapshot({key,rows:payload.rows as DayRow[],semantics});
    }catch(e){if(active&&!controller.signal.aborted)setError(e instanceof Error?e.message:'Falha ao carregar.');}
    finally{if(active)setLoading(false);}
   }
   void load();return()=>{active=false;controller.abort();};
  },[key]);
  const rows=snapshot?.key===key?snapshot.rows:null;
+ const tefVerified=snapshot?.key===key&&snapshot.semantics==='tef';
+ const series=[
+  {key:'tma_segundos',label:'TMA',color:'#2d74ca'},
+  {key:'tme_segundos',label:tefVerified?'TME de fila (TEF)':'Espera total (TET legado)',color:'#38964a'},
+ ] as const;
  const all=rows?.flatMap(r=>series.map(s=>r[s.key]).filter((v):v is number=>v!==null))??[];
  const ceiling=Math.max(60,Math.ceil(Math.max(0,...all)/60)*60);
  const chartWidth=Math.max(920,(rows?.length??0)*29+76);
@@ -71,7 +75,7 @@ export default function DailyTimesChart(){
   if(bounds.width&&bounds.height)setPointer({x:(e.clientX-bounds.left)*chartWidth/bounds.width,y:(e.clientY-bounds.top)*325/bounds.height});
  };
  return <section className="panel" style={{padding:20,marginBottom:18}}>
-  <div className="panel-head"><div><h2>TMA e TME diário</h2><p>Colunas agrupadas por dia · médias de atendimento e espera · horário de Brasília</p></div></div>
+  <div className="panel-head"><div><h2>{tefVerified?'TMA e TME de fila diário':'TMA e espera total diária (TET legado)'}</h2><p>Colunas agrupadas por dia · tempo de atendimento e {tefVerified?'espera em fila (TEF)':'espera total (TET)'} · horário de Brasília</p></div></div>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
    {options.map(o=><button key={o.key} type="button" aria-pressed={period===o.key} className={period===o.key?'primary-button':'outline-button'} onClick={()=>setPeriod(o.key)}>{o.label}</button>)}
   </div>
@@ -130,7 +134,7 @@ export default function DailyTimesChart(){
     {series.map(s=><span key={s.key} style={{display:'flex',gap:7,alignItems:'center',fontSize:12}}>
      <span style={{height:9,width:9,borderRadius:'50%',background:s.color}}/>{s.label}</span>)}
    </div>
-   <p style={{fontSize:11,opacity:.7,marginTop:12}}>Valores em segundos no eixo vertical; detalhes em mm:ss. Dias sem registros aparecem sem barras. Passe o mouse para ver o tooltip ou selecione pelo teclado.</p>
+   <p style={{fontSize:11,opacity:.7,marginTop:12}}>Valores em segundos no eixo vertical; detalhes em mm:ss. TET legado não é TME de fila. Dias sem registros aparecem sem barras. Passe o mouse para ver o tooltip ou selecione pelo teclado.</p>
   </div>}
  </section>;
 }

@@ -3,8 +3,8 @@ export const CALL_CENTER_TABS = [
   { id: 'overview', label: 'Visão geral', pending: false },
   { id: 'month', label: 'Por mês', pending: false },
   { id: 'hour', label: 'Por hora', pending: false },
-  { id: 'annual', label: 'Comparativo anual', pending: true },
-  { id: 'extension', label: 'Por ramal', pending: true },
+  { id: 'annual', label: 'Comparativo anual', pending: false },
+  { id: 'extension', label: 'Por ramal', pending: false },
 ] as const;
 export type CallCenterTab = typeof CALL_CENTER_TABS[number]['id'];
 

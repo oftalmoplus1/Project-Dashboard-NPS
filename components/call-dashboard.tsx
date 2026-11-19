@@ -6,6 +6,8 @@ import CallPeriodCharts from './call-period-charts';
 import HourlyLineChart from './hourly-line-chart';
 import CallCenterTabs from './call-center-tabs';
 import CallCenterSummary from './call-center-summary';
+import AnnualCallComparison from './annual-call-comparison';
+import CallExtensionsChart from './call-extensions-chart';
 import { CALL_CENTER_TABS, type CallCenterTab } from '@/lib/call-center-design';
 import { resolvePeriod, type Period } from '@/lib/call-dashboard';
 import { buildAggregateDashboard, type RpcRow } from '@/lib/call-dashboard-aggregates';
@@ -24,7 +26,7 @@ const categories = [
   { key: 'other', label: 'Outras', color: '#7d8590' },
 ] as const;
 const number = (value: number) => value.toLocaleString('pt-BR');
-type Extra = { key: string; status: 'ready' | 'unavailable'; tma: number | null; tet: number | null };
+type Extra = { key: string; status: 'ready' | 'unavailable'; tma: number | null; wait: number | null; semantics: 'tef' | 'tet_legacy' };
 
 export default function CallDashboard() {
   const tabId = useId();
@@ -95,9 +97,11 @@ export default function CallDashboard() {
         const metrics = payload.metrics as Record<string, unknown>;
         const valid = (value: unknown): value is number | null => value === null || (typeof value === 'number' && Number.isFinite(value) && value >= 0);
         if (!valid(metrics.tma_segundos) || !valid(metrics.tme_segundos)) throw new Error('Tempos inválidos.');
-        if (active) setExtra({ key: rangeKey, status: 'ready', tma: metrics.tma_segundos, tet: metrics.tme_segundos });
+        const semantics = 'tme_semantics' in payload ? payload.tme_semantics : null;
+        if (semantics !== 'tef' && semantics !== 'tet_legacy') throw new Error('Semântica de espera não verificada.');
+        if (active) setExtra({ key: rangeKey, status: 'ready', tma: metrics.tma_segundos, wait: metrics.tme_segundos, semantics });
       } catch {
-        if (active && !controller.signal.aborted) setExtra({ key: rangeKey, status: 'unavailable', tma: null, tet: null });
+        if (active && !controller.signal.aborted) setExtra({ key: rangeKey, status: 'unavailable', tma: null, wait: null, semantics: 'tet_legacy' });
       }
     };
     void load();
@@ -118,7 +122,7 @@ export default function CallDashboard() {
     timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium',
   }).format(snapshot.loadedAt) : '—';
   const showPeriod = tab === 'overview' || tab === 'hour';
-  const pending = tab === 'annual' || tab === 'extension';
+  const pending = false;
   return <div className={styles.workspace}>
     <div className={styles.header}>
       <div><h2>Chamadas</h2><p>Visão geral e análises do atendimento.</p></div>
@@ -142,7 +146,8 @@ export default function CallDashboard() {
       hidden={tab !== item.id} tabIndex={0}>
       {tab === item.id && item.id === 'overview' && <div className={styles.stack}>
         <CallCenterSummary summary={data?.summary ?? null} loading={!data && !error && !resolved?.error}
-          partial={!!now && rangeEnd === localToday(now)} times={data ? times : null} timeStatus={data ? timeStatus : (error || resolved?.error) ? 'unavailable' : 'loading'} />
+          partial={!!now && rangeEnd === localToday(now)}
+          times={data && times ? { tma: times.tma, tme: times.wait, tefVerified: times.semantics === 'tef' } : null} timeStatus={data ? timeStatus : (error || resolved?.error) ? 'unavailable' : 'loading'} />
         {data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">
           <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>{rangeStart === rangeEnd ? 'Dia completo, de 0h a 24h, em intervalos de duas horas.' : data.range.granularity === 'month' ? 'Totais por mês no período.' : 'Totais por dia no período.'}</p></div></div>
           <div className={styles.legend}>{categories.map(category => <span key={category.key}><i aria-hidden="true" style={{ background: category.color }} />{category.label}</span>)}</div>
@@ -166,12 +171,10 @@ export default function CallDashboard() {
         rangeStart={rangeStart} rangeEnd={rangeEnd} year={annualYear} onYearChange={setAnnualYear}
         currentYear={now ? Number(localToday(now).slice(0, 4)) : annualYear} refreshKey={requestNumber} showHourly={false} />}
       {tab === item.id && item.id === 'hour' && (range ? <HourlyLineChart start={range.start} end={range.end} refreshKey={requestNumber} /> : <p className={styles.hint}>Selecione um período válido para consultar as horas.</p>)}
-      {tab === item.id && item.pending && <div className={styles.pending}>
-        <span className={styles.badge}>Aguardando integração validada</span>
-        <h3>{item.id === 'annual' ? 'Comparativo anual' : 'Chamadas atendidas por ramal'}</h3>
-        <p>{item.id === 'annual' ? 'A comparação entre anos e suas variações percentuais ainda não estão disponíveis. Serão utilizados períodos equivalentes e histórico conferido.' : 'A distribuição por ramal ainda depende da validação da fonte de dados. Nenhum nome, ramal ou volume foi estimado.'}</p>
-        <p>Esta aba identifica uma pendência; não representa um resultado sem chamadas.</p>
-      </div>}
+      {tab === item.id && item.id === 'annual' && <AnnualCallComparison year={annualYear}
+        onYearChange={setAnnualYear} currentYear={now ? Number(localToday(now).slice(0,4)) : annualYear}
+        refreshKey={requestNumber} />}
+      {tab === item.id && item.id === 'extension' && <CallExtensionsChart refreshKey={requestNumber} />}
     </section>)}
     <footer className={styles.metadata}>
       {showPeriod && <div>Consulta do resumo: {updated} · Horário de Brasília.</div>}

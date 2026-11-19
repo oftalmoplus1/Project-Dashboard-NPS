@@ -1,3 +1,4 @@
+import { isTefVerified } from '@/lib/server/ligsim-feature-gates';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/server/auth-session';
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     const payload: unknown = await response.json();
     const row: unknown = Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
     if (!valid(row)) return NextResponse.json({metrics:null,status:'unavailable',error:'Formato inesperado da resposta.'},{status:502,headers:noStore});
-    return NextResponse.json({metrics:row,status:'ready'},{headers:noStore});
+    return NextResponse.json({metrics:row,status:'ready',tme_semantics:isTefVerified()?'tef':'tet_legacy'},{headers:noStore});
   } catch {
     return NextResponse.json({metrics:null,status:'unavailable',error:'Não foi possível consultar os indicadores.'},{status:503,headers:noStore});
   }

@@ -8,7 +8,7 @@ type Summary = {
 };
 type Props = {
   summary: Summary | null; loading: boolean; partial: boolean;
-  times: { tma: number | null; tet: number | null } | null;
+  times: { tma: number | null; tme: number | null; tefVerified: boolean } | null;
   timeStatus: 'loading' | 'ready' | 'unavailable';
 };
 const count = (value: number | undefined) => value === undefined ? '—' : value.toLocaleString('pt-BR');
@@ -43,9 +43,10 @@ export default function CallCenterSummary({ summary, loading, partial, times, ti
       </section>
       <section className={styles.card} aria-label="TME de fila">
         <div className={styles.cardHeader}><h3>TME de fila</h3><Clock3 size={19} aria-hidden="true" /></div>
-        <p className={styles.value}>—</p>
-        <span className={styles.badge}>Aguardando integração</span>
-        <p className={styles.hint}>Tempo médio de espera em fila. O cálculo com TEF ainda não está habilitado; TET não o substitui.</p>
+        <p className={styles.value}>{times?.tefVerified ? formatCallDuration(times.tme) : '—'}</p>
+        {!times?.tefVerified && <span className={styles.badge}>Aguardando validação SQL</span>}
+        <p className={styles.hint}>{times?.tefVerified ? 'Média de TEF válido em recebidas atendidas, com fila informada.' :
+          'A função de espera em fila ainda não foi homologada. TET não substitui TEF.'}</p>
       </section>
     </div>
     <details className={styles.details}>
@@ -54,7 +55,7 @@ export default function CallCenterSummary({ summary, loading, partial, times, ti
         <div><dt><PhoneMissed size={15} aria-hidden="true" /> Sem atendimento</dt><dd>{count(summary?.unanswered)}</dd></div>
         <div><dt><PhoneIncoming size={15} aria-hidden="true" /> Taxa de atendimento</dt><dd>{percent(summary?.answerRate)}</dd></div>
         <div><dt>Outras situações</dt><dd>{count(summary?.other)}</dd></div>
-        <div><dt>Espera total (TET legado)</dt><dd>{formatCallDuration(times?.tet)}</dd></div>
+        <div><dt>Espera total (TET legado)</dt><dd>{formatCallDuration(times && !times.tefVerified ? times.tme : null)}</dd></div>
       </dl>
       <p className={styles.hint}>Espera total é diferente de espera em fila. Tempos no formato mm:ss; a partir de uma hora, hh:mm:ss.</p>
     </details>

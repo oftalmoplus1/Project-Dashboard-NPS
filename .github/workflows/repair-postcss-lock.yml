@@ -1,0 +1,58 @@
+name: Reparacao pontual PostCSS
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/repair-postcss-lock.yml']
+permissions:
+  contents: read
+jobs:
+  corrigir:
+    if: github.event.pull_request.number == 3 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/integridade-graficos-ligsim-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/integridade-graficos-ligsim-20261119
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Fixar somente PostCSS corrigido
+        run: |
+          git rev-parse HEAD > /tmp/base-sha
+          npm pkg set 'overrides.postcss=8.5.23'
+          npm install --package-lock-only --ignore-scripts --no-audit
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cp = require('node:child_process');
+          const old = JSON.parse(cp.execFileSync('git', ['show', 'HEAD:package-lock.json'], {encoding:'utf8'}));
+          const next = JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+          const changes = [];
+          for (const [name, record] of Object.entries(next.packages)) {
+            const previous = old.packages[name];
+            if (previous && (previous.version !== record.version || previous.integrity !== record.integrity)) changes.push(name);
+          }
+          if (changes.some(name => !name.endsWith('/postcss'))) throw new Error('Atualizacao inesperada fora de PostCSS: '+changes.join(','));
+          if (next.packages['node_modules/postcss']?.version !== '8.5.23') throw new Error('Versao corrigida ausente');
+          console.log('Pacotes atualizados:',changes);
+          NODE
+      - run: npm ci --ignore-scripts
+      - run: npm audit --omit=dev --audit-level=high
+      - run: node --test tests/call-data.test.mjs
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Versionar somente manifest e lockfile na branch de correcao
+        run: |
+          test "$(git ls-remote origin refs/heads/fix/integridade-graficos-ligsim-20261119 | cut -f1)" = "$(cat /tmp/base-sha)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git diff --cached --stat
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(deps): fixar PostCSS 8.5.23 sem atualizar Next.js'
+            git push origin HEAD:refs/heads/fix/integridade-graficos-ligsim-20261119
+          fi

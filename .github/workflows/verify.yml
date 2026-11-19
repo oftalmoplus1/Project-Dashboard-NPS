@@ -19,7 +19,7 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - run: node --test tests/call-data.test.cjs
+      - run: node --test tests/call-data.test.mjs
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build

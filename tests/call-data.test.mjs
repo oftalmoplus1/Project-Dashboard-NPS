@@ -1,16 +1,19 @@
-const { test, after } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'call-data-test-'));
-const root = path.resolve(__dirname, '..');
-const compiler = require.resolve('typescript/lib/tsc.js');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const compiler = createRequire(import.meta.url).resolve('typescript/lib/tsc.js');
 execFileSync(process.execPath, [compiler, 'lib/call-chart-data.ts', 'lib/server/fetch-call-aggregates.ts',
   '--target', 'ES2022', '--module', 'commonjs', '--strict', '--skipLibCheck', '--lib', 'ES2022,DOM', '--outDir', out], { cwd: root });
-const lib = require(path.join(out, 'call-chart-data.js'));
-const { fetchCallAggregates } = require(path.join(out, 'server/fetch-call-aggregates.js'));
+const { default: lib } = await import(pathToFileURL(path.join(out, 'call-chart-data.js')).href);
+const { default: reader } = await import(pathToFileURL(path.join(out, 'server/fetch-call-aggregates.js')).href);
+const { fetchCallAggregates } = reader;
 after(() => fs.rmSync(out, { recursive: true, force: true }));
 const range = { start: '2026-01-01', end: '2026-12-31' };
 const row = (day = '2026-01-02', hour = '00', extra = {}) => ({ periodo_inicio: `${day}T${hour}:00:00`,

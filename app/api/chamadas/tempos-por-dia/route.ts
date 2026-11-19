@@ -1,3 +1,4 @@
+import { isTefVerified } from '@/lib/server/ligsim-feature-gates';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/server/auth-session';
@@ -43,7 +44,7 @@ export async function GET(request:Request) {
   if(!Array.isArray(payload)||payload.length!==expected||!payload.every(validRow)||
      payload.some((r:DayRow,i:number)=>r.dia!==new Date(first+i*86400000).toISOString().slice(0,10)))
    return NextResponse.json({error:'Dados diários inconsistentes.'},{status:502,headers:noStore});
-  return NextResponse.json({rows:payload},{headers:noStore});
+  return NextResponse.json({rows:payload,tme_semantics:isTefVerified()?'tef':'tet_legacy'},{headers:noStore});
  } catch {
   return NextResponse.json({error:'Não foi possível carregar TMA e TME diários.'},{status:503,headers:noStore});
  }

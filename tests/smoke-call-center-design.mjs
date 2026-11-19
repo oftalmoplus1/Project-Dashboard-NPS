@@ -163,7 +163,8 @@ try {
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + (year - 1)).count(), 1);
     }
     const line = page.getByTestId('annual-mean-horizontal-line');
-    await line.waitFor();
+    // SVG horizontal <line> has a zero-height geometry box; check attachment, not Playwright visibility.
+    await line.waitFor({ state: 'attached' });
     assert.equal(await line.getAttribute('y1'), await line.getAttribute('y2'), 'average must be horizontal');
     assert.notEqual(await line.getAttribute('x1'), await line.getAttribute('x2'), 'average has width');
     const previousY = await line.getAttribute('y1');

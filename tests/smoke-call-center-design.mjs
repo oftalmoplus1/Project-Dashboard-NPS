@@ -136,20 +136,65 @@ try {
     await page.getByRole('button', { name: 'Hoje', exact: true }).click();
     await totals.getByText('120', { exact: true }).waitFor();
   });
-  await check('annual graph compares equivalent periods and displays variations', async () => {
+  await check('annual grouped columns are vertical and average is a horizontal line', async () => {
+    let previousMissing = false;
     await page.route('**/api/chamadas?*', async route => {
       const u = new URL(route.request().url());
       const date = u.searchParams.get('start');
       const perYear = Number(date.slice(0, 4));
+      if (previousMissing && perYear === year - 1) {
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [] }) });
+        return;
+      }
       const count = perYear === year - 1 ? 120 : 60;
       await route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify({ rows: [{ periodo_inicio: date + 'T08:00:00',
           total: count, atendidas: count / 2, abandonadas: count / 4, nao_atendidas: count / 4, outras: 0 }] }) });
     });
     await page.getByRole('tab', { name: /Comparativo anual/ }).click();
+    // Monthly tab intentionally retains an older year: select the target year explicitly.
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year));
     await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
-    await page.getByText('Variação:', { exact: false }).first().waitFor();
-    assert.match(await page.getByRole('tabpanel').innerText(), /100%/);
+    const chart = page.getByTestId('annual-vertical-chart');
+    await chart.waitFor();
+    assert.match(await page.getByRole('tabpanel').innerText(), /Colunas verticais agrupadas/);
+    for (const metric of ['total', 'atendidas', 'abandonadas']) {
+      assert.equal(await page.getByTestId('annual-column-' + metric + '-' + year).count(), 1);
+      assert.equal(await page.getByTestId('annual-column-' + metric + '-' + (year - 1)).count(), 1);
+    }
+    const line = page.getByTestId('annual-mean-horizontal-line');
+    // SVG horizontal <line> has a zero-height geometry box; check attachment, not Playwright visibility.
+    await line.waitFor({ state: 'attached' });
+    assert.equal(await line.getAttribute('y1'), await line.getAttribute('y2'), 'average must be horizontal');
+    assert.notEqual(await line.getAttribute('x1'), await line.getAttribute('x2'), 'average has width');
+    const previousY = await line.getAttribute('y1');
+    await page.getByLabel('Série da média anual').selectOption('atendidas');
+    assert.notEqual(await line.getAttribute('y1'), previousY, 'changing metric moves the average line vertically');
+    await page.getByTestId('annual-column-total-' + year).focus();
+    await page.getByRole('status').filter({ hasText: 'Recebidas · ' + year }).waitFor();
+    await page.screenshot({ path: 'artifacts/call-center-design/desktop-annual-vertical.png', fullPage: true });
+
+    // Real production condition: current year is present and prior year has no records.
+    previousMissing = true;
+    // Reload only the annual comparison; keep overview snapshot independent.
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year - 1));
+    await page.getByLabel('Ano da comparação anual').selectOption(String(year));
+    await page.getByText('Um dos anos não contém registros.', { exact: false }).waitFor();
+    assert.equal(await page.getByTestId('annual-column-total-' + (year - 1)).count(), 0);
+    assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);
+    assert.equal(await page.getByTestId('annual-column-total-' + year).count(), 1);
+    assert.equal(await page.getByTestId('annual-mean-horizontal-line').count(), 0);
+    assert.match(await page.getByRole('tabpanel').innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
+
+    await page.setViewportSize({ width: 375, height: 900 });
+    await settleLayout();
+    const mobile = await measureViewport();
+    assert.ok(mobile.document <= 377, 'annual chart must not overflow the mobile document');
+    const scroll = await page.locator('[class*="annualChartScroll"]').evaluate(element =>
+      ({ width: element.clientWidth, scroll: element.scrollWidth }));
+    assert.ok(scroll.scroll > scroll.width, 'annual chart must scroll within its own viewport');
+    await page.screenshot({ path: 'artifacts/call-center-design/mobile-annual-vertical.png', fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await page.unroute('**/api/chamadas?*');
   });
   await check('extension chart displays only validated source results after explicit filter', async () => {

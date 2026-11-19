@@ -16,9 +16,9 @@ Criado `docs/sql/tef-2026-11-19-guarded.sql` para as funcoes privadas consolidad
 
 ## 2. Comparativo anual
 
-A aba compara recebidas, atendidas e abandonadas entre o ano escolhido e o anterior, consultando as RPCs agregadas existentes por periodos curtos. Se o ano corrente esta em andamento, compara os mesmos intervalos de calendario (p.ex. 01/01-19/11 em ambos os anos); se encerrado, compara anos inteiros. Crescimento ou queda = (atual - anterior) / anterior * 100. Base anterior zero = percentual indisponivel, nao infinito/zero. Linha vertical de media entre os dois volumes anuais para uma serie selecionada.
+A aba compara recebidas, atendidas e abandonadas entre o ano escolhido e o anterior, consultando as RPCs agregadas existentes por periodos curtos. Se o ano corrente esta em andamento, compara os mesmos intervalos de calendario (p.ex. 01/01-19/11 em ambos os anos); se encerrado, compara anos inteiros. Crescimento ou queda = (atual - anterior) / anterior * 100. Base anterior zero = percentual indisponivel, nao infinito/zero. Linha horizontal de media entre os dois volumes anuais para uma serie selecionada, em grafico unico de colunas verticais agrupadas: tres categorias no eixo X (Recebidas, Atendidas, Abandonadas), volume no eixo Y, uma coluna por ano. As cores distinguem ano selecionado e anterior.
 
-A consulta da RPC pode estar completa sem comprovar que a integracao historica LigSim esta completa. A interface informa esse limite. Nao inferir historico ausente como dados corretos.
+A consulta da RPC pode estar completa sem comprovar que a integracao historica LigSim esta completa. A interface informa esse limite. Nao inferir historico ausente como dados corretos. Ano sem historico e representado por 'Sem dados', sem desenhar coluna de valor zero; nao exibir media nem variacao quando faltar um dos anos. Quando ambos os anos tem dados e o anterior tem zero chamadas validas, manter a variacao indefinida. Valores exibidos sobre as colunas; titulo acessivel e detalhes para mouse/teclado. A area do grafico pode rolar horizontalmente no celular, sem rolagem horizontal do documento.
 
 ## 3. Atendidas por ramal
 

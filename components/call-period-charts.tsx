@@ -15,8 +15,9 @@ const fmt = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDi
 type Props = {
   rows: RpcRow[]; rangeStart: string; rangeEnd: string; year: number;
   onYearChange: (year: number) => void; currentYear: number; refreshKey: number;
+  showHourly?: boolean;
 };
-export default function CallPeriodCharts({ rangeStart, rangeEnd, year, onYearChange, currentYear, refreshKey }: Props) {
+export default function CallPeriodCharts({ rangeStart, rangeEnd, year, onYearChange, currentYear, refreshKey, showHourly = true }: Props) {
   const asOf = localToday(new Date());
   const snapshotKey = `${year}:${asOf}`;
   const [annual, setAnnual] = useState<{ key: string; rows: RpcRow[] } | null>(null);
@@ -100,6 +101,6 @@ export default function CallPeriodCharts({ rangeStart, rangeEnd, year, onYearCha
       <p style={{ fontSize: 12 }}>{mean === null ? 'Media indisponivel: nenhum mes encerrado com registros.' : `Linha tracejada: media de ${meanLabel.toLowerCase()} = ${fmt(mean)}, em ${data?.meanMonthCount} meses encerrados com registros.`}</p>
       <p style={{ fontSize: 11, opacity: .75 }}>Mês corrente, meses futuros e meses sem registros não entram na média. Ausência de registros não comprova volume zero. A presença de dados também não comprova a integração completa do histórico.</p>
     </section>
-    <HourlyLineChart start={rangeStart} end={rangeEnd} refreshKey={refreshKey} />
+    {showHourly && <HourlyLineChart start={rangeStart} end={rangeEnd} refreshKey={refreshKey} />}
   </div>;
 }

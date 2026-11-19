@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, CircleHelp, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun, X, ShieldCheck, Folder } from 'lucide-react';
 import { sections, sectionDescriptions, type Section } from '@/lib/navigation';
+import { callCenterTopicLabel } from '@/lib/call-center-design';
+import callCenterStyles from './call-center.module.css';
 import SectionContent from './section-content';
 import LogoutButton from './logout-button';
 import type { DashboardItem } from '@/lib/dashboard-registry';
@@ -58,9 +60,9 @@ export default function AppShell({section,callView='geral',role,topic}:{section:
  const active=sections.find(s=>s.slug===section)!;
  const admin=role==='administrador';
  const callsLive = section === 'chamadas';
- const heading=topic?.nome??active.label;
+ const heading=topic?callCenterTopicLabel(topic):callsLive?'Call Center':active.label;
  const headingDescription=topic?'Dashboards associados a este tópico, conforme permissões.':sectionDescriptions[section];
- return <div className={`app-root ${sidebarCollapsed?'sidebar-collapsed':''}`}>
+ return <div className={`app-root ${sidebarCollapsed?'sidebar-collapsed':''} ${callsLive?callCenterStyles.shell:''}`}>
   {mobileOpen && <button className="backdrop" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`} aria-label="Navegação principal">
    <div className="brand"><div className="brand-mark"><Image src="/logo-empresa.png" width={48} height={48} alt="Logomarca da empresa" priority/></div><div className="brand-copy"><strong>dashboard<span>_tools</span></strong><small>Business intelligence</small></div><button type="button" className="icon-button desktop-collapse" title={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-label={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-expanded={!sidebarCollapsed} onClick={()=>setSidebarCollapsed(v=>!v)}>{sidebarCollapsed?<PanelLeftOpen size={19}/>:<PanelLeftClose size={19}/>}</button><button className="mobile-close icon-button" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}><X size={18}/></button></div>
@@ -78,10 +80,10 @@ export default function AppShell({section,callView='geral',role,topic}:{section:
             {group==='Meus Dashboards' && topicsLoading && <span className="nav-no-access">Carregando tópicos...</span>}
             {group==='Meus Dashboards' && !topicsLoading && topics.length===0 && <span className="nav-no-access">Nenhum tópico autorizado.</span>}
             {group==='Meus Dashboards' && topics.map(t=><Link
-              key={t.slug} href={`/meus-dashboards/${t.slug}`} title={t.nome}
+              key={t.slug} href={`/meus-dashboards/${t.slug}`} title={callCenterTopicLabel(t)}
               className={`nav-item nav-topic-item ${topic?.slug===t.slug?'active':''}`}
               aria-current={topic?.slug===t.slug?'page':undefined}>
-              <Folder size={18} strokeWidth={1.9}/><span className="nav-item-label">{t.nome}</span>
+              <Folder size={18} strokeWidth={1.9}/><span className="nav-item-label">{callCenterTopicLabel(t)}</span>
              </Link>)}
             {items.map(item=>{const Icon=item.icon;return <Link key={item.slug} href={`/${item.slug}`} title={item.label} className={`nav-item ${section===item.slug?'active':''}`} aria-current={section===item.slug?'page':undefined}><Icon size={18} strokeWidth={1.9}/><span className="nav-item-label">{item.label}</span></Link>})}
           </div>
@@ -92,9 +94,9 @@ export default function AppShell({section,callView='geral',role,topic}:{section:
    </nav>
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span className="sidebar-detail">{callsLive ? 'Chamadas · dados reais' : 'Ambiente visual de demonstração'}<br/><small>{callsLive ? 'Indicadores agregados do Supabase' : 'Sem conexão com dados reais'}</small></span></div><div className="account"><div className="avatar">AD</div><div className="sidebar-detail"><strong>{callsLive ? 'Usuário autenticado' : 'Usuário'}</strong><small>{callsLive ? 'Acesso autorizado' : 'Sessão autenticada'}</small></div><ChevronDown size={16}/></div></div>
   </aside>
-  <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{heading}</strong></div><div className="top-actions"><span className="demo-pill">Protótipo · Fase 1</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
-   <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> VISÃO CORPORATIVA</div><h1>{heading}</h1><p>{headingDescription}</p></div><div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div></div>
-   {topic ? <nav className="category-slider" aria-label={`Dashboards do tópico ${topic.nome}`}>
+  <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{heading}</strong></div><div className="top-actions"><span className="demo-pill">{callsLive?'Call Center':'Protótipo · Fase 1'}</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
+   <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div>{!callsLive && <div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div>}</div>
+   {topic ? <nav className="category-slider" aria-label={`Dashboards do tópico ${heading}`}>
       {topic.dashboards.map(d=><Link
        key={d.codigo} href={`/meus-dashboards/${topic.slug}?dashboard=${d.codigo}`}
        className={`category-slide ${topic.activeCode===d.codigo?'active':''}`}

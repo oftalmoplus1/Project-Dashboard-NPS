@@ -11,8 +11,9 @@ permissions:
   contents: read
 jobs:
   verificar:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Pin the runner supported by the pinned browser toolchain.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,9 +26,33 @@ jobs:
       - name: Relatorio de dependencias de desenvolvimento
         continue-on-error: true
         run: npm audit --json
-      - run: node --test tests/call-data.test.mjs
+      - run: node --test tests/call-data.test.mjs tests/call-center-design.test.mjs
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build
       - name: Validar rotas HTTP com Supabase simulado
         run: node tests/smoke-http.mjs
+      - name: Reutilizar navegador da versao fixada
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-headless-ubuntu24-playwright-1.56.1
+      - name: Instalar navegador isolado para testes de interface
+        timeout-minutes: 4
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '30000'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/callcenter-browser" --no-package-lock --ignore-scripts --no-audit --no-fund --fetch-timeout=30000 --fetch-retries=1 playwright@1.56.1
+          # Required runtime libraries are supplied by the pinned Ubuntu runner.
+          # Missing libraries still fail the mandatory browser launch below.
+          node "$RUNNER_TEMP/callcenter-browser/node_modules/playwright/cli.js" install chromium --only-shell
+      - name: Validar design responsivo e navegacao com dados sinteticos
+        run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/callcenter-browser/node_modules/playwright/index.mjs" node tests/smoke-call-center-design.mjs
+      - name: Guardar capturas da interface de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: call-center-design-${{ github.sha }}
+          path: artifacts/call-center-design
+          if-no-files-found: ignore
+          retention-days: 7

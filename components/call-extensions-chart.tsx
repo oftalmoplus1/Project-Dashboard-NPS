@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { localToday, validateRange } from '@/lib/call-chart-data';
-import { parseExtensionResponse, type ExtensionCount } from '@/lib/ligsim-report-data';
+import { parsePublicExtensionRows, type ExtensionCount } from '@/lib/ligsim-report-data';
 
 const number = (value: number) => value.toLocaleString('pt-BR');
 type Props = { refreshKey: number };
@@ -30,7 +30,7 @@ export default function CallExtensionsChart({ refreshKey }: Props) {
         const payload: unknown = await response.json();
         if (!payload || typeof payload !== 'object' || !('rows' in payload)) throw new Error('Resposta de ramais inválida.');
         // Reuse the exact schema validator, without accepting extra/private fields.
-        const validated = parseExtensionResponse({ data: { data: (payload as { rows: unknown }).rows } });
+        const validated = parsePublicExtensionRows(payload);
         if (active) setRows({ key, data: validated });
       } catch (cause) {
         if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Falha nos dados por ramal.');

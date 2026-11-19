@@ -102,3 +102,93 @@
 .shell :global(.topbar-left strong) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 1000px) { .shell :global(.breadcrumb), .shell :global(.crumb-sep), .shell :global(.demo-pill) { display: none; } }
 @media (max-width: 460px) { .shell :global(.top-avatar) { display: none; } }
+
+
+/* Comparativo anual: colunas verticais e linha horizontal de media.
+   O scroll pertence ao grafico, nunca ao documento inteiro. */
+.annualMeanSelect {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 6px;
+  color: var(--cc-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.annualVisualization, .annualResults {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.annualVisualization { gap: 8px; }
+.annualLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text);
+}
+.annualLegend > span {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+}
+.annualLegend i {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.annualMeanLegend i {
+  height: 0;
+  width: 20px;
+  border-top: 2px dashed var(--text);
+  border-radius: 0;
+}
+.annualChartScroll {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.annualChart {
+  display: block;
+  width: 100%;
+  min-width: 700px;
+  height: auto;
+}
+.annualTooltip {
+  min-height: 22px;
+  margin: 0;
+  color: var(--cc-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.annualVariations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.annualVariation {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--soft);
+  font-size: 12px;
+}
+.annualVariation span {
+  color: var(--cc-muted);
+  line-height: 1.5;
+}
+.annualNote { font-size: 12px; line-height: 1.6; margin: 0; }
+.annualSourceNote { font-size: 11px; line-height: 1.6; color: var(--cc-muted); margin: 0; }
+@media (max-width: 700px) {
+  .annualVariations { grid-template-columns: 1fr; }
+}

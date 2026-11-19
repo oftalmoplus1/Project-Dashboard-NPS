@@ -65,8 +65,8 @@
 .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--cc-muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
 .plotScroll { overflow-x: auto; padding: 16px 4px; }
-.plot { display: flex; align-items: end; gap: 12px; width: max-content; min-width: 100%; height: 245px; }
-.bar { display: flex; flex-direction: column; align-items: center; justify-content: end; width: 62px; height: 100%; padding: 3px; border: 0; color: var(--text); background: transparent; }
+.plot { display: flex; align-items: flex-end; gap: 12px; width: max-content; min-width: 100%; height: 245px; }
+.bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 62px; height: 100%; padding: 3px; border: 0; color: var(--text); background: transparent; }
 .bar[aria-pressed='true'] { background: var(--soft); border-radius: 6px; }
 .barTotal { font-size: 11px; }
 .barSegments { display: flex; flex-direction: column-reverse; width: 40px; }

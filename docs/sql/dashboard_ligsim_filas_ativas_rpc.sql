@@ -1,5 +1,8 @@
 -- 23/11/2026 | LigSim listar_filas | RPC com escopo restrito ao painel Hoje.
--- NAO EXECUTAR AUTOMATICAMENTE. Revisar backup/owner e testar em ambiente correto.
+-- Executar manualmente no Supabase self-hosted CORRETO. Sem backup por decisao operacional.
+-- Risco residual: nao ha restauracao completa do ambiente; esta transacao cria SOMENTE duas funcoes.
+-- A reversao esta em docs/sql/dashboard_ligsim_filas_ativas_rollback.sql.
+-- Nao execute se houver duvida sobre a identidade do banco ou sobre a conta administrativa.
 -- Nao altera tabela, RLS, ACLs atuais de Power BI ou MCP, nem o n8n.
 -- A resposta inclui SOMENTE colunas de contagem e identificacao das filas.
 -- O ultimo upsert n8n encontrado atualizou 8 filas com o mesmo updated_at;
@@ -126,5 +129,5 @@ NOTIFY pgrst, 'reload schema';
 --        has_function_privilege('authenticated','public.dashboard_ligsim_filas_ativas()','EXECUTE') AS authenticated_execute;
 -- Testes reais obrigatorios: admin 200 com 8 filas e sourceUpdatedAt, gestor 403,
 -- anon 401; 3 filas antigas devem permanecer no banco e fora do resumo.
--- Executar sob conta administrativa autenticada, NUNCA alterar para
+-- Executar no SQL Editor como operador administrativo, NUNCA alterar para
 -- SECURITY DEFINER no wrapper publico ou conceder SELECT geral na tabela.

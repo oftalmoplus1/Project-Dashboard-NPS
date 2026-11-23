@@ -84,7 +84,7 @@ export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]
   const obj = payload as Record<string, unknown>;
   if (obj.source !== 'listar_filas' || obj.kind !== 'latest_snapshot' ||
       typeof obj.consultedAt !== 'string' || !Number.isFinite(Date.parse(obj.consultedAt)) ||
-      typeof obj.sourceUpdatedAt !== 'string' || !Number.isFinite(Date.parse(obj.sourceUpdatedAt)) {
+      typeof obj.sourceUpdatedAt !== 'string' || !Number.isFinite(Date.parse(obj.sourceUpdatedAt))) {
     throw new Error('Origem ou consulta de filas nao verificadas');
   }
   if (!Array.isArray(obj.rows)) throw new Error('Filas ausentes na resposta');

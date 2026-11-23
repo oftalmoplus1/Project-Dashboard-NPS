@@ -170,8 +170,21 @@ try {
     const previousY = await line.getAttribute('y1');
     await page.getByLabel('Série da média anual').selectOption('atendidas');
     assert.notEqual(await line.getAttribute('y1'), previousY, 'changing metric moves the average line vertically');
-    await page.getByTestId('annual-column-total-' + year).focus();
+    const totalColumn = page.getByTestId('annual-column-total-' + year);
+    await totalColumn.hover();
+    const floating = page.getByTestId('annual-column-tooltip');
+    await floating.waitFor();
+    assert.match(await floating.innerText(), /Recebidas/);
+    assert.match(await floating.innerText(), new RegExp(String(year)));
+    assert.match(await floating.innerText(), /chamadas/);
+    assert.match(await floating.innerText(), /Média dos 2 anos/);
+    await page.mouse.move(12, 12);
+    assert.equal(await floating.count(), 0, 'tooltip disappears on pointer exit');
+    await totalColumn.focus();
+    await floating.waitFor();
     await page.getByRole('status').filter({ hasText: 'Recebidas · ' + year }).waitFor();
+    await page.getByLabel('Série da média anual').focus();
+    assert.equal(await floating.count(), 0, 'tooltip disappears on blur');
     await page.screenshot({ path: 'artifacts/call-center-design/desktop-annual-vertical.png', fullPage: true });
 
     // Real production condition: current year is present and prior year has no records.
@@ -183,8 +196,15 @@ try {
     assert.equal(await page.getByTestId('annual-column-total-' + (year - 1)).count(), 0);
     assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);
     assert.equal(await page.getByTestId('annual-column-total-' + year).count(), 1);
-    assert.equal(await page.getByTestId('annual-mean-horizontal-line').count(), 0);
+    const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
+    await singleYearLine.waitFor({ state: 'attached' });
+    assert.equal(await singleYearLine.getAttribute('y1'), await singleYearLine.getAttribute('y2'));
+    assert.match(await page.getByRole('tabpanel').innerText(), /único ano com dados/);
     assert.match(await page.getByRole('tabpanel').innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
+    await totalColumn.hover();
+    await floating.waitFor();
+    assert.match(await floating.innerText(), /apenas 1 ano com dados/);
+    assert.match(await floating.innerText(), /Variação indisponível/);
 
     await page.setViewportSize({ width: 375, height: 900 });
     await settleLayout();

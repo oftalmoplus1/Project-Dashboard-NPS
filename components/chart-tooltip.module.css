@@ -1,7 +1,7 @@
 .tooltip {
   position: fixed;
   z-index: 5000;
-  width: min(270px, calc(100vw - 24px));
+  width: min(330px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   overflow: hidden;
   padding: 12px 14px;
@@ -20,9 +20,32 @@
 }
 .tooltip[data-open='true'] { opacity: 1; transform: translateY(0) scale(1); }
 .title { display: block; margin-bottom: 8px; font-weight: 750; font-size: 13px; }
-.line { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 5px; }
-.label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); }
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 42%);
+  column-gap: 16px;
+  align-items: start;
+  margin-top: 8px;
+}
+.label {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  color: var(--muted);
+}
 .swatch { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 2px; }
-.value { flex: 0 0 auto; font-weight: 750; color: var(--text); }
-.note { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.value {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: right;
+  font-weight: 750;
+  line-height: 1.5;
+  color: var(--text);
+}
+.note { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) { .tooltip { transition: none; transform: none; } }

@@ -1,4 +1,6 @@
 'use client';
+import { useState } from 'react';
+import ChartTooltip, { pointFromFocus, pointFromMouse, type TooltipPoint } from './chart-tooltip';
 import CallDashboard from './call-dashboard';
 import DailyTimesChart from './daily-times-chart';
 import ManageTopics from './manage-topics';
@@ -15,7 +17,74 @@ const records=[
 ];
 function Stat({label,value,detail,icon:Icon,tone='blue'}:{label:string;value:string;detail:string;icon:LucideIcon;tone?:string}){return <div className="stat-card"><div className="stat-top"><span>{label}</span><span className={`stat-icon ${tone}`}><Icon size={19}/></span></div><strong>{value}</strong><small>{detail}</small></div>}
 function Placeholder({title,description}:{title:string;description:string}){return <div className="empty-panel"><div className="empty-icon"><Layers3 size={25}/></div><h3>{title}</h3><p>{description}</p><span className="phase-tag">Estrutura pronta · integração futura</span></div>}
-function Overview(){return <><div className="notice"><span className="notice-dot"/><span><strong>Visualização demonstrativa.</strong> Os números abaixo são fictícios para validar o layout. Nenhuma fonte de dados está conectada.</span></div><div className="stats-grid"><Stat label="Dashboards" value="12" detail="Exemplo de total publicado" icon={BarChart3} tone="blue"/><Stat label="Fontes de dados" value="08" detail="Exemplo de fontes cadastradas" icon={Database} tone="teal"/><Stat label="Alertas ativos" value="04" detail="Exemplo de alertas operacionais" icon={TriangleAlert} tone="red"/><Stat label="Operações pendentes" value="02" detail="Contador global ilustrativo" icon={Clock3} tone="yellow"/></div><div className="two-column"><section className="panel"><div className="panel-head"><div><h2>Visão de indicadores</h2><p>Distribuição ilustrativa por período</p></div><span className="subtle-pill">Exemplo</span></div><div className="chart-area"><div className="chart-grid"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div className="bar-plot">{[44,63,52,79,67,90,74].map((height,i)=><div className="bar-slot" key={i}><div className="bar" style={{height:`${height}%`,background:['var(--blue)','var(--teal)','var(--lime)','var(--yellow)','var(--blue)','var(--teal)','var(--red)'][i]}}/><small>{['Abr','Mai','Jun','Jul','Ago','Set','Out'][i]}</small></div>)}</div></div></section><section className="panel"><div className="panel-head"><div><h2>Distribuição por categoria</h2><p>Valores ilustrativos</p></div><MoreHorizontal size={20} className="muted"/></div><div className="donut-layout"><div className="donut" role="img" aria-label="Gráfico ilustrativo: 34% azul, 26% amarelo, 22% verde, 18% vermelho"><div><strong>100%</strong><small>Simulado</small></div></div><div className="legend"><span><i style={{background:'var(--blue)'}}/> Financeiro <b>34%</b></span><span><i style={{background:'var(--yellow)'}}/> Comercial <b>26%</b></span><span><i style={{background:'var(--lime)'}}/> Operações <b>22%</b></span><span><i style={{background:'var(--red)'}}/> Outros <b>18%</b></span></div></div></section></div><section className="panel"><div className="panel-head"><div><h2>Dashboards recentes</h2><p>Exemplos de organização do catálogo</p></div><span className="subtle-pill">Dados fictícios</span></div><DashboardTable rows={records}/></section></>}
+
+const demoBars = [
+ {label:'Abr',value:44,color:'var(--blue)'},{label:'Mai',value:63,color:'var(--teal)'},
+ {label:'Jun',value:52,color:'var(--lime)'},{label:'Jul',value:79,color:'var(--yellow)'},
+ {label:'Ago',value:67,color:'var(--blue)'},{label:'Set',value:90,color:'var(--teal)'},
+ {label:'Out',value:74,color:'var(--red)'},
+] as const;
+
+function DemoOverviewBars(){
+ const [hovered,setHovered]=useState<number|null>(null);
+ const [selected,setSelected]=useState<number|null>(null);
+ const [point,setPoint]=useState<TooltipPoint|null>(null);
+ const index=hovered??selected;
+ const active=index===null?null:demoBars[index];
+ return <>
+  <div className="chart-area">
+   <div className="chart-grid"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+   <div className="bar-plot">{demoBars.map((item,i)=><div className="bar-slot" key={item.label}
+    role="button" tabIndex={0} aria-pressed={selected===i}
+    aria-label={item.label+': '+item.value+' (valor ilustrativo)'}
+    onMouseEnter={e=>{setHovered(i);setPoint(pointFromMouse(e));}}
+    onMouseMove={e=>setPoint(pointFromMouse(e))}
+    onMouseLeave={()=>setHovered(null)}
+    onFocus={e=>{setHovered(i);setPoint(pointFromFocus(e));}}
+    onBlur={()=>setHovered(null)}
+    onClick={e=>{setSelected(selected===i?null:i);setPoint(pointFromMouse(e));}}
+    onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(selected===i?null:i);}}}>
+    <div className="bar" style={{height:item.value+'%',background:item.color}}/><small>{item.label}</small>
+   </div>)}</div>
+  </div>
+  <ChartTooltip open={Boolean(active)} point={point}
+    title={active?.label??''} values={active?[{label:'Valor ilustrativo',value:String(active.value),color:active.color}]:[]}
+    note="Demonstração visual: valores fictícios."/>
+ </>;
+}
+
+function DemoDonut(){
+ const [open,setOpen]=useState(false);
+ const [point,setPoint]=useState<TooltipPoint|null>(null);
+ return <>
+  <div className="donut-layout">
+   <div className="donut" role="img" tabIndex={0}
+    aria-label="Gráfico ilustrativo: 34% azul, 26% amarelo, 22% verde, 18% vermelho"
+    onMouseEnter={e=>{setOpen(true);setPoint(pointFromMouse(e));}}
+    onMouseMove={e=>setPoint(pointFromMouse(e))}
+    onMouseLeave={()=>setOpen(false)}
+    onFocus={e=>{setOpen(true);setPoint(pointFromFocus(e));}}
+    onBlur={()=>setOpen(false)}>
+    <div><strong>100%</strong><small>Simulado</small></div>
+   </div>
+   <div className="legend">
+    <span><i style={{background:'var(--blue)'}}/> Financeiro <b>34%</b></span>
+    <span><i style={{background:'var(--yellow)'}}/> Comercial <b>26%</b></span>
+    <span><i style={{background:'var(--lime)'}}/> Operações <b>22%</b></span>
+    <span><i style={{background:'var(--red)'}}/> Outros <b>18%</b></span>
+   </div>
+  </div>
+  <ChartTooltip open={open} point={point} title="Distribuição ilustrativa"
+   values={[
+    {label:'Financeiro',value:'34%',color:'var(--blue)'},
+    {label:'Comercial',value:'26%',color:'var(--yellow)'},
+    {label:'Operações',value:'22%',color:'var(--lime)'},
+    {label:'Outros',value:'18%',color:'var(--red)'},
+   ]} note="Dados fictícios usados apenas para validar o layout."/>
+ </>;
+}
+
+function Overview(){return <><div className="notice"><span className="notice-dot"/><span><strong>Visualização demonstrativa.</strong> Os números abaixo são fictícios para validar o layout. Nenhuma fonte de dados está conectada.</span></div><div className="stats-grid"><Stat label="Dashboards" value="12" detail="Exemplo de total publicado" icon={BarChart3} tone="blue"/><Stat label="Fontes de dados" value="08" detail="Exemplo de fontes cadastradas" icon={Database} tone="teal"/><Stat label="Alertas ativos" value="04" detail="Exemplo de alertas operacionais" icon={TriangleAlert} tone="red"/><Stat label="Operações pendentes" value="02" detail="Contador global ilustrativo" icon={Clock3} tone="yellow"/></div><div className="two-column"><section className="panel"><div className="panel-head"><div><h2>Visão de indicadores</h2><p>Distribuição ilustrativa por período</p></div><span className="subtle-pill">Exemplo</span></div><DemoOverviewBars/></section><section className="panel"><div className="panel-head"><div><h2>Distribuição por categoria</h2><p>Valores ilustrativos</p></div><MoreHorizontal size={20} className="muted"/></div><DemoDonut/></section></div><section className="panel"><div className="panel-head"><div><h2>Dashboards recentes</h2><p>Exemplos de organização do catálogo</p></div><span className="subtle-pill">Dados fictícios</span></div><DashboardTable rows={records}/></section></>}
 function DashboardTable({rows}:{rows:typeof records}){return <div className="table-wrap"><table><thead><tr><th>Dashboard</th><th>Categoria</th><th>Última atualização</th><th>Situação</th></tr></thead><tbody>{rows.map(row=><tr key={row.name}><td><span className={`table-dot ${row.color}`}/><strong>{row.name}</strong></td><td>{row.category}</td><td>{row.updated}</td><td><span className={`status ${row.status==='Publicado'?'ok':'draft'}`}>{row.status}</span></td></tr>)}</tbody></table>{rows.length===0&&<div className="no-results">Nenhum dashboard corresponde à pesquisa.</div>}</div>}
 function Dashboards({query,setQuery}:Pick<Props,'query'|'setQuery'>){return <><div className="notice"><span className="notice-dot"/>Catálogo demonstrativo: pesquisa local funcional, sem publicação ou edição real.</div><section className="panel"><div className="panel-head"><div><h2>Catálogo de dashboards</h2><p>Exemplo de categorias e estados de publicação</p></div><button className="primary-button" disabled title="Disponível em fase futura"><Plus size={16}/> Novo dashboard</button></div><div className="toolbar"><div className="search-field"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar dashboards..." aria-label="Pesquisar dashboards"/></div><span className="subtle-pill">{records.filter(r=>(r.name+' '+r.category).toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR'))).length} resultados</span></div><DashboardTable rows={records.filter(r=>(r.name+' '+r.category).toLocaleLowerCase('pt-BR').includes(query.toLocaleLowerCase('pt-BR')))}/></section></>}
 const content:Partial<Record<Section,{title:string;description:string;icon:LucideIcon;items:string[]}>>={

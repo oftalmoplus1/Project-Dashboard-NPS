@@ -45,7 +45,7 @@ async function upstreamError(result: Response) {
  const code = data && typeof data === 'object' && 'code' in data ? (data as { code?: unknown }).code : null;
  const status = result.status === 401 || result.status === 403 || code === '42501' ? 403
   : code === '23505' || result.status === 409 ? 409
-  : code === 'P0002' || result.status === 404 ? 404 : 503;
+  : code === 'P0002' ? 404 : 503;
  const message = status === 409 ? 'Já existe outro tópico com esse nome.'
   : status === 404 ? 'Tópico não encontrado.' : status === 403 ? 'Acesso negado pelo catálogo.'
   : 'Operação indisponível. Verifique a instalação das funções administrativas.';

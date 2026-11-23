@@ -35,7 +35,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const [now, setNow] = useState<Date | null>(null);
   const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[]; loadedAt: Date } | null>(null);
   const [extra, setExtra] = useState<Extra | null>(null);
-  const [queues, setQueues] = useState<{ key: string; rows: QueueSnapshot[]; summary: QueueSummary; loadedAt: Date } | null>(null);
+  const [queues, setQueues] = useState<{ key: string; rows: QueueSnapshot[]; summary: QueueSummary; loadedAt: Date; sourceUpdatedAt: Date } | null>(null);
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(false);
   const [error, setError] = useState('');
@@ -77,7 +77,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
           throw new Error('A tabela listar_filas está indisponível ou sem permissão de leitura.');
         }
         const parsed = parseQueueApiResponse(await response.json());
-        if (active) setQueues({ key: todayKey, rows: parsed.rows, summary: parsed.summary, loadedAt: new Date(parsed.consultedAt) });
+        if (active) setQueues({ key: todayKey, rows: parsed.rows, summary: parsed.summary, loadedAt: new Date(parsed.consultedAt), sourceUpdatedAt: new Date(parsed.sourceUpdatedAt) });
       } catch (cause) {
         if (active && !controller.signal.aborted) {
           setQueueError(cause instanceof Error ? cause.message : 'Falha ao atualizar filas.');
@@ -145,7 +145,9 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     if (!range || snapshot?.key !== rangeKey) return null;
     try { return buildAggregateDashboard(snapshot.rows, range); } catch { return null; }
   }, [range, rangeKey, snapshot]);
-  const queueData = queueMode && queues?.key === todayKey ? queues : null;
+  const queueData = queueMode && queues?.key === todayKey && now &&
+    now.getTime() - queues.sourceUpdatedAt.getTime() <= 3 * 60 * 60 * 1000 &&
+    queues.sourceUpdatedAt.getTime() - now.getTime() <= 5 * 60 * 1000 ? queues : null;
   const shownSummary = queueMode ? queueData?.summary ?? null : data?.summary ?? null;
   const activeBucket = data?.buckets.find(bucket => bucket.key === selectedBucket);
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
@@ -185,7 +187,9 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
           timeStatus={shownSummary ? timeStatus : ((queueMode ? queueError : error) || resolved?.error) ? 'unavailable' : 'loading'} />
         {queueMode && queueData && <section className={`panel ${styles.chart}`} aria-label="Estado atual das filas">
           <div className="panel-head"><div><h2>Filas — último estado disponível</h2>
-            <p>Dados atuais de listar_filas. A tabela não guarda a evolução diária ou horária.</p></div></div>
+            <p>Última coleta registrada: {new Intl.DateTimeFormat('pt-BR', {
+              timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short'
+            }).format(queueData.sourceUpdatedAt)} (Brasília). A tabela não guarda histórico diário ou horário.</p></div></div>
           <div className={styles.plotScroll}>
             <table style={{ width: '100%', minWidth: 530, borderCollapse: 'collapse', fontSize: 12 }}>
               <thead><tr>
@@ -199,7 +203,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
               </tr>)}</tbody>
             </table>
           </div>
-          <p className={styles.hint}>Contadores instantâneos fornecidos pela LigSim e atualizados pelo n8n. A hora da consulta não comprova quando ocorreu a última coleta. TMA/TME seguem o relatório de chamadas.</p>
+          <p className={styles.hint}>Contadores instantâneos fornecidos pela LigSim e atualizados pelo n8n. A última coleta é indicada separadamente da hora da consulta. TMA/TME seguem o relatório de chamadas.</p>
         </section>}
         
         {!queueMode && data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">

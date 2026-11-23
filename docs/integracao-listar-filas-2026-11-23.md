@@ -31,7 +31,7 @@ No workflow ativo, a API `/v2/queues` entrega `queues[]`; após o tratamento atu
 
 No CSV da tabela, **11 linhas** estavam persistidas; 8 tinham `updated_at` de 23/11 às 09:00 (America/Sao_Paulo), enquanto IDs 5, 16 e 17 ainda tinham `updated_at` de 17/09. Na execução n8n 9430 (23/11 09:00, bem-sucedida), o `GET-Listar-Filas` retornou **exatamente os IDs 1,2,3,4,6,13,14,15**. Portanto a soma do último lote é **80 recebidas, 63 atendidas, 15 abandonadas**, não 83/64/16 incluindo as três filas antigas. Isso não demonstra que a API defina esses contadores como chamadas individuais do dia; não conciliar automaticamente com CDR.
 
-As políticas RLS existentes permitem `SELECT` somente para `powerbi_user` e `mcp_readonly`; `authenticated` não herda esses papéis. Embora `authenticated` tenha ACL de leitura da tabela (inclusive `member`), a política RLS atual impede seu acesso direto. A solução é **não abrir uma política ampla**: instalar a RPC protegida em `docs/sql/dashboard_ligsim_filas_ativas_rpc.sql` e somente depois publicar o PR. Conferir o owner, backup e a semântica de `updated_at` antes da instalação.
+As políticas RLS existentes permitem `SELECT` somente para `powerbi_user` e `mcp_readonly`; `authenticated` não herda esses papéis. Embora `authenticated` tenha ACL de leitura da tabela (inclusive `member`), a política RLS atual impede seu acesso direto. A solução é **não abrir uma política ampla**: instalar a RPC protegida em `docs/sql/dashboard_ligsim_filas_ativas_rpc.sql` e somente depois publicar o PR. O usuário decidiu prosseguir sem backup nesta etapa: a instalação cria exclusivamente duas funções dentro de transação, sem alterações na tabela ou RLS. O rollback restrito está em `docs/sql/dashboard_ligsim_filas_ativas_rollback.sql`. A ausência de backup reduz as opções de recuperação e foi explicitamente registrada.
 
 ## Verificação no Supabase self-hosted antes de homologar produção
 
@@ -61,4 +61,4 @@ Uma configuração existente do workflow mantém um segredo de integração lite
 3. A ausência de históricos na fonte de filas é informada.
 4. Tab Por ramal e endpoint `/api/chamadas/ramais` inexistentes.
 5. Testes de payload, integridade, autorização, XSS via saída React, zero vs sem dados e responsividade aprovados.
-6. Lint, TypeScript, build, testes HTTP e testes de navegador aprovados; RPC instalada com backup, validação de permissões real e rollback documentado antes do deploy. A alteração de código sozinha não muda o banco.
+6. Lint, TypeScript, build, testes HTTP e testes de navegador aprovados; RPC instalada com autorização administrativa, validação real de permissões e rollback documentado antes do deploy. Instalação sem backup por decisão do responsável, com risco residual registrado. A alteração de código sozinha não muda o banco.

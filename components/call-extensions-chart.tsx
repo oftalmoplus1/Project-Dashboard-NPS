@@ -77,7 +77,7 @@ export default function CallExtensionsChart({ refreshKey }: Props) {
           alignItems: 'center', gap: 12, width: '100%', padding: '5px 2px', border: '1px solid transparent',
           borderRadius: 7, color: 'var(--text)', background: hovered===item.extension || selected===item.extension ? 'var(--soft)' : 'transparent',
           textAlign: 'left', cursor: 'pointer', transition: 'background 180ms ease-out' }}>
-        <span style={{ overflowWrap: 'anywhere', fontSize: 12 }} title={item.extension}>{item.extension}</span>
+        <span style={{ overflowWrap: 'anywhere', fontSize: 12 }}>{item.extension}</span>
         <span style={{ height: 22, background: 'var(--soft)', borderRadius: 4 }}>
           <span style={{ display: 'block', width: (item.answered / max * 100) + '%', height: '100%', background: '#12b981', borderRadius: 4 }}/>
         </span>

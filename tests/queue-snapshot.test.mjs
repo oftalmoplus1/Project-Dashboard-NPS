@@ -1,0 +1,71 @@
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = fs.mkdtempSync(path.join(os.tmpdir(), 'queue-snapshot-'));
+const tsc = createRequire(import.meta.url).resolve('typescript/lib/tsc.js');
+execFileSync(process.execPath, [tsc, 'lib/ligsim-queue-snapshot.ts',
+  '--target', 'ES2022', '--module', 'commonjs', '--strict', '--skipLibCheck', '--outDir', out], { cwd: root });
+const lib = (await import(pathToFileURL(path.join(out, 'ligsim-queue-snapshot.js')).href)).default;
+after(() => fs.rmSync(out, { recursive: true, force: true }));
+
+const queue = (id, received, answered, over, under, waiting = 0) =>
+  ({ id, name: 'FILA-' + id, received, answered, abandon_more_30s: over,
+    abandon_less_30s: under, waiting_calls: waiting, member: [{ internal: 'private' }] });
+
+test('compute queue received, answered, both abandonment buckets and waiting', () => {
+  const data = lib.parseQueueSnapshot([queue(2, 80, 50, 12, 5, 3), queue(1, 120, 80, 8, 2, 4)]);
+  assert.deepEqual(data.rows, [
+    { id: 1, name: 'FILA-1', received: 120, answered: 80, abandoned: 10, waiting: 4 },
+    { id: 2, name: 'FILA-2', received: 80, answered: 50, abandoned: 17, waiting: 3 },
+  ]);
+  assert.equal(data.summary.total, 200);
+  assert.equal(data.summary.answered, 130);
+  assert.equal(data.summary.abandoned, 27);
+  assert.equal(data.summary.unanswered, null);
+  assert.equal(data.summary.other, null);
+  assert.equal(data.summary.abandonRate, 13.5);
+  assert.ok(!JSON.stringify(data).includes('member'));
+});
+
+test('valid zero snapshot distinguishes a snapshot with no traffic from missing records', () => {
+  const data = lib.parseQueueSnapshot([queue(1, 0, 0, 0, 0)]);
+  assert.equal(data.summary.total, 0);
+  assert.equal(data.summary.abandonRate, null);
+  assert.equal(data.rows.length, 1);
+  assert.throws(() => lib.parseQueueSnapshot([]));
+});
+
+for (const input of [
+  [queue(1, -1, 0, 0, 0)],
+  [queue(1, 2, 3, 0, 0)],
+  [queue(1, 10, 8, 3, 0)],
+  [queue(1, 5, 0, 0, -1)],
+  [queue(1, 5, 0, '3', 0)],
+  [queue(1, 5, 0, 0.5, 0)],
+  [queue(1, 5, 0, 0, 0), queue(1, 5, 0, 0, 0)],
+  [{ ...queue(1, 5, 0, 0, 0), name: '' }],
+]) test('reject inconsistent or malformed queue counters', () => assert.throws(() => lib.parseQueueSnapshot(input)));
+
+test('validate public snapshot without treating missing history as zero', () => {
+  const raw = lib.parseQueueSnapshot([queue(1, 10, 7, 1, 1)]);
+  const output = lib.parseQueueApiResponse({ ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z', sourceUpdatedAt: '2026-11-23T09:00:00Z' });
+  assert.equal(output.summary.total, 10);
+  assert.equal(output.rows[0].abandoned, 2);
+  assert.equal(output.consultedAt, '2026-11-23T10:00:00Z');
+  assert.equal(output.sourceUpdatedAt, '2026-11-23T09:00:00Z');
+});
+test('public response rejects wrong origin or mismatched summaries', () => {
+  const raw = lib.parseQueueSnapshot([queue(1, 10, 7, 1, 1)]);
+  const baseline = { ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z', sourceUpdatedAt: '2026-11-23T09:00:00Z' };
+  assert.throws(() => lib.parseQueueApiResponse({ ...baseline, source: 'outra_tabela' }));
+  assert.throws(() => lib.parseQueueApiResponse({ ...baseline, summary: { ...raw.summary, total: 40 } }));
+  assert.throws(() => lib.parseQueueApiResponse({ ...baseline, rows: [] }));
+  assert.throws(() => lib.parseQueueApiResponse({ ...baseline, sourceUpdatedAt: null }));
+});

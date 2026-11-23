@@ -22,6 +22,18 @@ const upstream = createServer(async (req, res) => {
   if (req.headers.apikey !== 'design-test-key') return send(401, {});
   if (url.pathname === '/auth/v1/user') return req.headers.authorization === 'Bearer design-admin-session'
     ? send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: 'admin' } }) : send(401, {});
+  if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+    if (req.method !== 'POST' || req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
+    if (mode === 'error') return send(503, {});
+    if (mode === 'denied') return send(403, {});
+    const timestamp = new Date().toISOString();
+    return send(200, {
+      snapshotKind: 'latest_successful_batch', sourceUpdatedAt: timestamp,
+      rows: [{ id: 1, name: 'FILA-TESTE', received: 120, answered: 80,
+        abandon_less_30s: 2, abandon_more_30s: 8,
+        waiting_calls: 4, updated_at: timestamp }]
+    });
+  }
   if (!url.pathname.startsWith('/rest/v1/rpc/dashboard_chamadas_')) return send(404, {});
   if (req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
   rpcRequests++;
@@ -105,14 +117,28 @@ try {
     const text = await page.getByRole('region', { name: 'TME de fila', exact: true }).innerText();
     assert.match(text, /Aguardando validação SQL/); assert.ok(!text.includes('00:40'));
   });
-  await check('one upper menu shows six Call Center dashboards and loads only overview initially', async () => {
-    assert.equal(await menu.getByRole('link').count(), 6);
+  await check('one upper menu shows five dashboards after retiring ramal and loads only overview initially', async () => {
+    assert.equal(await menu.getByRole('link').count(), 5);
     assert.equal(await nav('Visão geral').getAttribute('aria-current'), 'page');
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por mês', exact: true }).count(), 0);
   });
+  await check('Hoje shows validated queue snapshot and protects detailed members', async () => {
+    await page.getByRole('heading', { name: 'Filas — último estado disponível' }).waitFor();
+    await page.getByRole('rowheader', { name: 'FILA-TESTE' }).waitFor();
+    assert.equal(await nav('Por ramal').count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).count(), 0);
+    assert.match(await totals.innerText(), /listar_filas/);
+    assert.equal(await page.getByText('member', { exact: true }).count(), 0);
+  });
   await mkdir('artifacts/call-center-design', { recursive: true });
   await page.screenshot({ path: 'artifacts/call-center-design/desktop-overview.png', fullPage: true });
+  // Retain the e4ee559 visual checks on CDR history; the queue snapshot itself
+  // has no hourly breakdown, so its "Hoje" panel must not invent evolution bars.
+  await page.getByRole('button', { name: 'Personalizado', exact: true }).click();
+  await page.getByLabel('Data inicial', { exact: true }).fill(today);
+  await page.getByLabel('Data final', { exact: true }).fill(today);
+  await page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).waitFor();
   await check('call evolution columns use rounded visible corners', async () => {
     const columns = page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).locator('[class*="barSegments"]');
     await columns.first().waitFor({ state: 'attached' });
@@ -137,6 +163,8 @@ try {
     assert.equal(await region.getByRole('button', { name: 'Fechar' }).count(), 1,
       'selected bar details remain available after tooltip closes');
   });
+  await page.getByRole('button', { name: 'Hoje', exact: true }).click();
+  await page.getByRole('heading', { name: 'Filas — último estado disponível' }).waitFor();
   await check('Tab and Enter navigate the unified dashboard links', async () => {
     await nav('Visão geral').focus();
     await page.keyboard.press('Tab');
@@ -296,19 +324,9 @@ try {
     assert.equal(await page.getByText(/Valores em segundos no eixo vertical; detalhes em mm:ss/).count(), 0);
     assert.equal(await page.getByText(/TET legado não é TME de fila\. Dias sem registros/).count(), 0);
   });
-  await check('extension chart displays only validated source results after explicit filter', async () => {
-    await page.route('**/api/chamadas/ramais?*', async route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [
-        { extension: '2001', answered: 8 }, { extension: '2002', answered: 14 },
-      ] }),
-    }));
-    await nav('Por ramal').click();
-    await page.getByRole('heading', { name: 'Chamadas atendidas por ramal', exact: true }).waitFor();
-    assert.equal(await page.getByText('2002', { exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Consultar', exact: true }).click();
-    await page.getByText('2002', { exact: true }).waitFor();
-    assert.equal(await page.getByText('14', { exact: true }).count(), 1);
-    await page.unroute('**/api/chamadas/ramais?*');
+  await check('Por ramal has no navigation or API after retirement', async () => {
+    assert.equal(await menu.getByRole('link', { name: 'Por ramal' }).count(), 0);
+    assert.equal((await page.request.get(origin + '/api/chamadas/ramais')).status(), 404);
   });
   await nav('Visão geral').click();
   for (const width of [375, 768, 1440]) await check(`no document overflow at ${width}px`, async () => {
@@ -340,10 +358,10 @@ try {
   });
   await check('transient error preserves same-period values with an explicit warning', async () => {
     mode = 'error'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    const alert = page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'consulta válida' });
+    const alert = page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'última coleta válida do mesmo dia' });
     await alert.waitFor();
     assert.ok(await totals.getByText('120', { exact: true }).isVisible());
-    assert.match(await alert.innerText(), /consulta válida/);
+    assert.match(await alert.innerText(), /última coleta válida do mesmo dia/);
   });
   await check('access denial clears all visible volume and time values', async () => {
     mode = 'denied'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();

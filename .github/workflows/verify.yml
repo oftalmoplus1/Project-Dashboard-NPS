@@ -26,7 +26,7 @@ jobs:
       - name: Relatorio de dependencias de desenvolvimento
         continue-on-error: true
         run: npm audit --json
-      - run: node --test tests/call-data.test.mjs tests/call-center-design.test.mjs tests/ligsim-reports.test.mjs
+      - run: node --test tests/call-data.test.mjs tests/call-center-design.test.mjs tests/ligsim-reports.test.mjs tests/queue-snapshot.test.mjs
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build

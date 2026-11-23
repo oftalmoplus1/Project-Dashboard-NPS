@@ -25,6 +25,28 @@ const upstream = createServer(async (req, res) => {
       const role = token === 'Bearer admin-test-session' ? 'admin' : token === 'Bearer manager-test-session' ? 'manager' : null;
       return send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: role }, user_metadata: { dashboard_role: 'admin' } });
     }
+    if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+      assert.equal(req.method, 'POST');
+      assert.equal(req.headers.authorization, 'Bearer admin-test-session');
+      assert.equal(req.headers['content-type'], 'application/json');
+      let input = '';
+      for await (const part of req) input += part;
+      assert.deepEqual(JSON.parse(input), {});
+      if (mode === 'queue-denied') return send(403, {});
+      const updatedAt = new Date(Date.now() - (mode === 'queue-stale' ? 4 * 60 * 60 * 1000 : 0)).toISOString();
+      const previous = new Date(Date.now() - 66 * 24 * 60 * 60 * 1000).toISOString();
+      const queue = { id: 1, name: 'Fila Teste',
+        received: mode === 'queue-invalid' ? 10 : 120, answered: 80,
+        abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4,
+        updated_at: updatedAt };
+      return send(200, {
+        snapshotKind: 'latest_successful_batch', sourceUpdatedAt: updatedAt,
+        rows: mode === 'queue-empty' ? [] : mode === 'queue-mixed' ? [
+          queue, { ...queue, id: 16, name: 'Fila antiga', received: 2, answered: 0,
+            abandon_more_30s: 0, abandon_less_30s: 1, waiting_calls: 0, updated_at: previous },
+        ] : [queue],
+      });
+    }
     rpcRequests++;
     assert.equal(req.method, 'POST');
     assert.equal(req.headers.authorization, 'Bearer admin-test-session');
@@ -68,7 +90,7 @@ try {
     await delay(100);
   }
   assert.ok(ready, 'Application readiness');
-  for (const route of ['/api/chamadas', '/api/chamadas/por-hora', '/api/chamadas/indicadores', '/api/chamadas/tempos-por-dia', '/api/chamadas/ramais']) {
+  for (const route of ['/api/chamadas', '/api/chamadas/por-hora', '/api/chamadas/indicadores', '/api/chamadas/tempos-por-dia', '/api/chamadas/filas']) {
     await check(`session required: ${route}`, async () => assert.equal((await request(route + query)).status, 401));
   }
   for (const token of ['manager-test-session', 'expired-test-session', 'unprivileged-test-session']) {
@@ -109,12 +131,45 @@ try {
     assert.equal(data.tme_semantics, 'tet_legacy');
     assert.equal(data.rows.length, 2);
   });
-  await check('extension endpoint requires admin and never uses service role', async () => {
-    for (const role of ['manager-test-session', 'expired-test-session']) {
-      assert.equal((await request('/api/chamadas/ramais' + query, role)).status, 403);
+  await check('queue snapshots enforce admin role without touching upstream', async () => {
+    for (const token of ['manager-test-session', 'expired-test-session', 'unprivileged-test-session']) {
+      const before = rpcRequests;
+      assert.equal((await request('/api/chamadas/filas', token)).status, 403);
+      assert.equal(rpcRequests, before);
     }
-    const response = await request('/api/chamadas/ramais' + query, 'admin-test-session');
-    assert.equal(response.status, 503); // integration intentionally absent in synthetic CI
+  });
+  await check('queue RPC returns a minimal safe projection and correct totals', async () => {
+    const response = await request('/api/chamadas/filas', 'admin-test-session');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    const body = await response.json();
+    assert.equal(body.source, 'listar_filas');
+    assert.equal(body.kind, 'latest_snapshot');
+    assert.ok(Number.isFinite(Date.parse(body.sourceUpdatedAt)));
+    assert.deepEqual(body.rows, [
+      { id: 1, name: 'Fila Teste', received: 120, answered: 80, abandoned: 10, waiting: 4 },
+    ]);
+    assert.equal(body.summary.total, 120);
+    assert.equal(body.summary.answered, 80);
+    assert.equal(body.summary.abandoned, 10);
+    assert.equal(body.summary.unanswered, null);
+    assert.ok(!JSON.stringify(body).includes('member'));
+  });
+  await check('queue RPC rejects empty or inconsistent snapshots without fabricating values', async () => {
+    for (const failure of ['queue-empty', 'queue-invalid', 'queue-stale', 'queue-mixed']) {
+      mode = failure;
+      const response = await request('/api/chamadas/filas', 'admin-test-session');
+      assert.equal(response.status, 503, failure);
+      assert.equal('rows' in await response.json(), false, failure);
+    }
+  });
+  await check('Supabase RPC permission denials are propagated', async () => {
+    mode = 'queue-denied';
+    assert.equal((await request('/api/chamadas/filas', 'admin-test-session')).status, 403);
+    mode = 'normal';
+  });
+  await check('old ramal route is removed even for authenticated admins', async () => {
+    assert.equal((await request('/api/chamadas/ramais' + query, 'admin-test-session')).status, 404);
   });
   console.log(`HTTP_SMOKE_PASSED=${passed}; source=synthetic; production_validation=false`);
 } catch (error) {

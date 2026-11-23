@@ -4,7 +4,6 @@ export const CALL_CENTER_TABS = [
   { id: 'month', label: 'Por mês', pending: false },
   { id: 'hour', label: 'Por hora', pending: false },
   { id: 'annual', label: 'Comparativo anual', pending: false },
-  { id: 'extension', label: 'Por ramal', pending: false },
 ] as const;
 export type CallCenterTab = typeof CALL_CENTER_TABS[number]['id'];
 export type CallCenterView = CallCenterTab | 'tempos-diarios';

@@ -125,6 +125,18 @@ try {
     assert.ok(style.radius >= 4 && style.radius <= 5, 'evolution columns should have a subtle 4px corner radius');
     assert.equal(style.clipping, 'hidden', 'all stacked segments must be clipped to the rounded outline');
   });
+  await check('overview tooltip closes after pointer exits a selected column', async () => {
+    const region = page.getByRole('region', { name: 'Evolução das chamadas recebidas' });
+    const column = region.getByRole('button', { name: /08h.*10h/ });
+    await column.hover();
+    const tooltip = page.getByRole('tooltip');
+    await tooltip.waitFor({ state: 'visible' });
+    await column.click();
+    await page.mouse.move(12, 12);
+    await page.locator('[role="tooltip"][data-open="false"]').waitFor();
+    assert.equal(await region.getByRole('button', { name: 'Fechar' }).count(), 1,
+      'selected bar details remain available after tooltip closes');
+  });
   await check('Tab and Enter navigate the unified dashboard links', async () => {
     await nav('Visão geral').focus();
     await page.keyboard.press('Tab');

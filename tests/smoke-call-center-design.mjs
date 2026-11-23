@@ -166,7 +166,7 @@ try {
     await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
     const chart = page.getByTestId('annual-vertical-chart');
     await chart.waitFor();
-    assert.match(await page.getByRole('tabpanel').innerText(), /Colunas verticais agrupadas/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Colunas verticais agrupadas/);
     for (const metric of ['total', 'atendidas', 'abandonadas']) {
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + year).count(), 1);
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + (year - 1)).count(), 1);
@@ -208,8 +208,8 @@ try {
     const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
     await singleYearLine.waitFor({ state: 'attached' });
     assert.equal(await singleYearLine.getAttribute('y1'), await singleYearLine.getAttribute('y2'));
-    assert.match(await page.getByRole('tabpanel').innerText(), /único ano com dados/);
-    assert.match(await page.getByRole('tabpanel').innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /único ano com dados/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
     await totalColumn.hover();
     await floating.waitFor();
     assert.match(await floating.innerText(), /apenas 1 ano com dados/);
@@ -249,7 +249,7 @@ try {
       const hourly = await measureViewport();
       console.log('HOURLY_VIEWPORT_DIAGNOSTIC=' + JSON.stringify(hourly));
       assert.ok(hourly.document <= width + 2);
-      await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
+      await openView('Visão geral');
     }
   });
   await check('dark theme remains readable and functional', async () => {

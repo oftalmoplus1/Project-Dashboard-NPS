@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ChevronDown, CircleHelp, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun, X, ShieldCheck, Folder } from 'lucide-react';
 import { sections, sectionDescriptions, type Section } from '@/lib/navigation';
-import { callCenterTopicLabel } from '@/lib/call-center-design';
+import { callCenterTopicLabel, CALL_CENTER_NAV_ITEMS, type CallCenterView } from '@/lib/call-center-design';
 import callCenterStyles from './call-center.module.css';
 import SectionContent from './section-content';
 import LogoutButton from './logout-button';
@@ -20,7 +20,7 @@ type TopicView={
 type TopicNav={nome:string;slug:string};
 
 
-export default function AppShell({section,callView='geral',role,topic}:{section:Section;callView?:'geral'|'tempos-diarios';role:'administrador'|'gestor';topic?:TopicView}){
+export default function AppShell({section,callView='overview',role,topic}:{section:Section;callView?:CallCenterView;role:'administrador'|'gestor';topic?:TopicView}){
  const pathname=usePathname();
  const [dark,setDark]=useState(false);
  const [themeReady,setThemeReady]=useState(false);
@@ -102,9 +102,9 @@ export default function AppShell({section,callView='geral',role,topic}:{section:
        className={`category-slide ${topic.activeCode===d.codigo?'active':''}`}
        aria-current={topic.activeCode===d.codigo?'page':undefined}>{d.nome}</Link>)}
      </nav>
-    :section==='chamadas' && <nav className="category-slider" aria-label="Dashboards de Visão Geral de Chamadas">
-     <Link href="/chamadas" className={`category-slide ${callView==='geral'?'active':''}`} aria-current={callView==='geral'?'page':undefined}>Chamadas</Link>
-     <Link href="/chamadas?painel=tempos-diarios" className={`category-slide ${callView==='tempos-diarios'?'active':''}`} aria-current={callView==='tempos-diarios'?'page':undefined}>TMA e TME diário</Link>
+    :section==='chamadas' && <nav className={`${callCenterStyles.tabs} ${callCenterStyles.dashboardNav}`} aria-label="Dashboards do Call Center">
+     {CALL_CENTER_NAV_ITEMS.map(item=><Link key={item.id} href={item.href}
+      className={callCenterStyles.tab} aria-current={callView===item.id?'page':undefined}>{item.label}</Link>)}
     </nav>}
    
    {section==='configuracoes' ? <section className="panel settings-panel" aria-label="Preferências pessoais">

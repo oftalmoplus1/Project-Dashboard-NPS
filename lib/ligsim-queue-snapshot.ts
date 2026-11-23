@@ -75,3 +75,39 @@ export function parseQueueSnapshot(payload: unknown): { rows: QueueSnapshot[]; s
     abandonRate: totals.total === 0 ? null : totals.abandoned / totals.total * 100,
   } };
 }
+
+/** Validate public API response before using it to render the daily dashboard. */
+export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]; summary: QueueSummary; consultedAt: string } {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Resposta de filas invalida');
+  }
+  const obj = payload as Record<string, unknown>;
+  if (obj.source !== 'listar_filas' || obj.kind !== 'latest_snapshot' ||
+      typeof obj.consultedAt !== 'string' || !Number.isFinite(Date.parse(obj.consultedAt))) {
+    throw new Error('Origem ou consulta de filas nao verificadas');
+  }
+  if (!Array.isArray(obj.rows)) throw new Error('Filas ausentes na resposta');
+  const normalized = obj.rows.map(raw => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error('Registro publico de fila invalido');
+    }
+    const row = raw as Record<string, unknown>;
+    return {
+      id: row.id, name: row.name,
+      received: row.received, answered: row.answered,
+      abandon_more_30s: row.abandoned, abandon_less_30s: 0,
+      waiting_calls: row.waiting,
+    };
+  });
+  const result = parseQueueSnapshot(normalized);
+  if (!obj.summary || typeof obj.summary !== 'object' || Array.isArray(obj.summary)) {
+    throw new Error('Resumo de filas ausente');
+  }
+  const actual = obj.summary as Record<string, unknown>;
+  for (const key of ['total', 'answered', 'abandoned']) {
+    if (actual[key] !== result.summary[key as 'total' | 'answered' | 'abandoned']) {
+      throw new Error('Resumo de filas inconsistente');
+    }
+  }
+  return { ...result, consultedAt: obj.consultedAt };
+}

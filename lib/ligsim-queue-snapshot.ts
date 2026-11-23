@@ -77,13 +77,14 @@ export function parseQueueSnapshot(payload: unknown): { rows: QueueSnapshot[]; s
 }
 
 /** Validate public API response before using it to render the daily dashboard. */
-export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]; summary: QueueSummary; consultedAt: string } {
+export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]; summary: QueueSummary; consultedAt: string; sourceUpdatedAt: string } {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
     throw new Error('Resposta de filas invalida');
   }
   const obj = payload as Record<string, unknown>;
   if (obj.source !== 'listar_filas' || obj.kind !== 'latest_snapshot' ||
-      typeof obj.consultedAt !== 'string' || !Number.isFinite(Date.parse(obj.consultedAt))) {
+      typeof obj.consultedAt !== 'string' || !Number.isFinite(Date.parse(obj.consultedAt)) ||
+      typeof obj.sourceUpdatedAt !== 'string' || !Number.isFinite(Date.parse(obj.sourceUpdatedAt)) {
     throw new Error('Origem ou consulta de filas nao verificadas');
   }
   if (!Array.isArray(obj.rows)) throw new Error('Filas ausentes na resposta');
@@ -109,5 +110,5 @@ export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]
       throw new Error('Resumo de filas inconsistente');
     }
   }
-  return { ...result, consultedAt: obj.consultedAt };
+  return { ...result, consultedAt: obj.consultedAt, sourceUpdatedAt: obj.sourceUpdatedAt };
 }

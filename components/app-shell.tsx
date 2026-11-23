@@ -52,7 +52,9 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
    }finally{if(live)setTopicsLoading(false);}
   }
   void getTopics();
-  return ()=>{live=false;};
+  const onTopicsChanged=()=>{setTopicsLoading(true);void getTopics();};
+  window.addEventListener('dashboard-topics-updated',onTopicsChanged);
+  return ()=>{live=false;window.removeEventListener('dashboard-topics-updated',onTopicsChanged);};
  },[pathname]);
  useEffect(()=>{setMobileOpen(false)},[pathname]);
  useEffect(()=>{setSidebarCollapsed(window.localStorage.getItem('dashboard-sidebar-collapsed')==='true');setSidebarReady(true)},[]);

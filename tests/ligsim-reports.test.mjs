@@ -68,6 +68,18 @@ test('annual series map matching metrics with vertical mean', () => {
   assert.equal(data[2].variation, 200);
   assert.equal(data[0].mean, 150);
 });
+test('mean line uses two annual observations when both years are available', () => {
+  assert.equal(mod.availableAnnualMean(200, 100, true, true), 150);
+  assert.equal(mod.availableAnnualMean(0, 100, true, true), 50);
+});
+test('with one observed year, mean reference is that year, not invented missing history', () => {
+  assert.equal(mod.availableAnnualMean(53_436, 0, true, false), 53_436);
+  assert.equal(mod.availableAnnualMean(0, 125, false, true), 125);
+  assert.equal(mod.availableAnnualMean(0, 0, true, false), 0);
+  assert.equal(mod.availableAnnualMean(0, 0, false, false), null);
+  assert.throws(() => mod.availableAnnualMean(-1, 100, true, true));
+});
+
 test('extensions conform to LigSim chartcallsipdst documented envelope', () => {
   const data = mod.parseExtensionResponse({ data: { data: [
     { answered: '2001', total: 12, private: 'must-not-leak' },

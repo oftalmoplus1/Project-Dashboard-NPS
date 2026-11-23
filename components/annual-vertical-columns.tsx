@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState, type FocusEvent, type MouseEvent } from 'react';
 import type { ChartMetric } from '@/lib/call-chart-data';
+import { availableAnnualMean } from '@/lib/ligsim-report-data';
 import styles from './call-center.module.css';
 
 type Metric = { key: ChartMetric; current: number; previous: number; variation: number | null; mean: number };
@@ -12,6 +13,8 @@ type Props = {
   hasPrevious: boolean;
   meanMetric: ChartMetric;
 };
+
+type HoveredColumn = { key: ChartMetric; year: number; x: number; y: number };
 
 const labels: Record<ChartMetric, string> = {
   total: 'Recebidas', atendidas: 'Atendidas', abandonadas: 'Abandonadas',
@@ -26,6 +29,7 @@ const centers = [207, 483, 759];
 const barWidth = 66;
 const previousColor = '#8e9aab';
 const currentColor = '#3185e7';
+const meanColor = '#f1b944';
 
 function axisCeiling(values: number[]): number {
   const maximum = Math.max(0, ...values);
@@ -35,12 +39,22 @@ function axisCeiling(values: number[]): number {
   return tick * 4;
 }
 
+function tooltipPosition(clientX: number, clientY: number): { x: number; y: number } {
+  // Keep the floating information inside the viewport, including narrow mobile screens.
+  const width = Math.min(260, Math.max(180, window.innerWidth - 24));
+  const x = Math.min(window.innerWidth - width - 12, Math.max(12, clientX + 14));
+  const y = clientY + 148 > window.innerHeight ? Math.max(12, clientY - 152) : clientY + 14;
+  return { x: Math.max(12, x), y: Math.max(12, y) };
+}
+
 /**
- * Presentation only. Metrics are calculated by the existing aggregation module;
- * missing history is not rendered as a zero-height column.
+ * Presentation only. The annual totals come from the existing aggregation module.
+ * A missing year never becomes a zero. With one year available, the reference
+ * is visibly identified as a one-year baseline, not an interannual comparison.
  */
 export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPrevious, meanMetric }: Props) {
-  const [hovered, setHovered] = useState<{ key: ChartMetric; year: number } | null>(null);
+  const tooltipId = useId();
+  const [hovered, setHovered] = useState<HoveredColumn | null>(null);
   const actualValues = metrics.flatMap(metric => [
     ...(hasPrevious ? [metric.previous] : []),
     ...(hasCurrent ? [metric.current] : []),
@@ -48,8 +62,24 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
   const maximum = axisCeiling(actualValues);
   const scaleY = (value: number) => bottom - (value / maximum) * height;
   const chosen = metrics.find(metric => metric.key === meanMetric);
-  const mean = hasCurrent && hasPrevious && chosen ? chosen.mean : null;
+  const mean = chosen ? availableAnnualMean(chosen.current, chosen.previous, hasCurrent, hasPrevious) : null;
+  const availableYears = Number(hasCurrent) + Number(hasPrevious);
   const highlighted = hovered ? metrics.find(metric => metric.key === hovered.key) : null;
+  const hoveredMean = highlighted ?
+    availableAnnualMean(highlighted.current, highlighted.previous, hasCurrent, hasPrevious) : null;
+
+  const showFromMouse = (event: MouseEvent<SVGRectElement>, key: ChartMetric, columnYear: number) => {
+    const { x, y } = tooltipPosition(event.clientX, event.clientY);
+    setHovered(previous => previous?.key === key && previous.year === columnYear &&
+      Math.abs(previous.x - x) < 5 && Math.abs(previous.y - y) < 5 ?
+      previous : { key, year: columnYear, x, y });
+  };
+
+  const showFromKeyboard = (event: FocusEvent<SVGRectElement>, key: ChartMetric, columnYear: number) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const { x, y } = tooltipPosition(rect.left + rect.width / 2, rect.top + Math.min(20, rect.height / 2));
+    setHovered({ key, year: columnYear, x, y });
+  };
 
   const drawColumn = (metric: Metric, index: number, isCurrent: boolean) => {
     const value = isCurrent ? metric.current : metric.previous;
@@ -68,20 +98,20 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
     const y = scaleY(value);
     const barHeight = value === 0 ? 0 : Math.max(2, bottom - y);
     const label = labels[metric.key] + ', ' + columnYear + ': ' + format(value) + ' chamadas';
+    const active = hovered?.key === metric.key && hovered.year === columnYear;
     return (
       <g key={columnYear}>
         <rect data-testid={'annual-column-' + metric.key + '-' + columnYear}
           x={x} y={bottom - barHeight} width={barWidth} height={barHeight}
           rx={3} fill={isCurrent ? currentColor : previousColor}
-          tabIndex={0} aria-label={label}
-          onMouseEnter={() => setHovered({ key: metric.key, year: columnYear })}
+          tabIndex={0} aria-label={label} aria-describedby={active ? tooltipId : undefined}
+          onMouseEnter={event => showFromMouse(event, metric.key, columnYear)}
+          onMouseMove={event => showFromMouse(event, metric.key, columnYear)}
           onMouseLeave={() => setHovered(null)}
-          onFocus={() => setHovered({ key: metric.key, year: columnYear })}
-          onBlur={() => setHovered(null)}>
-          <title>{label}</title>
-        </rect>
+          onFocus={event => showFromKeyboard(event, metric.key, columnYear)}
+          onBlur={() => setHovered(null)} />
         <text x={center} y={Math.max(top + 13, bottom - barHeight - 9)}
-          textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text)">
+          textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--text)" pointerEvents="none">
           {format(value)}
         </text>
       </g>
@@ -93,7 +123,10 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
       <span><i style={{ background: previousColor }} aria-hidden="true" />{year - 1}</span>
       <span><i style={{ background: currentColor }} aria-hidden="true" />{year}</span>
       {mean !== null && <span className={styles.annualMeanLegend}>
-        <i aria-hidden="true" />Média de {labels[meanMetric].toLowerCase()}: {format(mean)}
+        <i style={{ borderTopColor: meanColor }} aria-hidden="true"/>
+        {availableYears === 2 ?
+          'Média entre 2 anos de ' + labels[meanMetric].toLowerCase() + ': ' + format(mean) :
+          'Referência de ' + labels[meanMetric].toLowerCase() + ' (único ano disponível): ' + format(mean)}
       </span>}
     </div>
 
@@ -125,10 +158,10 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
         {mean !== null && <g pointerEvents="none">
           <line data-testid="annual-mean-horizontal-line"
             x1={left} x2={right} y1={scaleY(mean)} y2={scaleY(mean)}
-            stroke="var(--text)" strokeWidth={2} strokeDasharray="8 6" />
-          <text x={right - 6} y={Math.max(top + 12, scaleY(mean) - 9)}
-            textAnchor="end" fontSize="12" fontWeight="600" fill="var(--text)">
-            Média: {format(mean)}
+            stroke={meanColor} strokeWidth={3} strokeDasharray="9 6"/>
+          <text x={right - 6} y={Math.max(top + 12, scaleY(mean) - 10)}
+            textAnchor="end" fontSize="12" fontWeight="700" fill={meanColor}>
+            {availableYears === 2 ? 'Média' : 'Referência'}: {format(mean)}
           </text>
         </g>}
         <text x={(left + right) / 2} y={409} textAnchor="middle" fontSize="12" fill="var(--cc-muted)">
@@ -136,11 +169,30 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
         </text>
       </svg>
     </div>
+
+    {hovered && highlighted && <div
+      data-testid="annual-column-tooltip"
+      role="tooltip" id={tooltipId} className={styles.annualFloatingTooltip}
+      style={{ left: hovered.x, top: hovered.y }}>
+      <strong>{labels[highlighted.key]} · {hovered.year}</strong>
+      <span className={styles.annualFloatingValue}>
+        {format(hovered.year === year ? highlighted.current : highlighted.previous)} chamadas
+      </span>
+      <span>{availableYears === 2 ?
+        'Média dos 2 anos: ' + format(hoveredMean ?? 0) :
+        'Referência: ' + format(hoveredMean ?? 0) + ' (apenas 1 ano com dados)'}</span>
+      <span>{hasCurrent && hasPrevious ?
+        'Variação: ' + (highlighted.variation === null ?
+          'indefinida (ano anterior com zero)' :
+          (highlighted.variation > 0 ? '+' : '') +
+          highlighted.variation.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%') :
+        'Variação indisponível: falta histórico anual'}</span>
+    </div>}
     <p className={styles.annualTooltip} role="status">
       {highlighted && hovered ?
         labels[highlighted.key] + ' · ' + hovered.year + ': ' +
         format(hovered.year === year ? highlighted.current : highlighted.previous) + ' chamadas' :
-        'Passe o mouse ou use Tab para consultar o valor de cada coluna.'}
+        'Passe o mouse ou use Tab para consultar os valores de cada coluna.'}
     </p>
   </div>;
 }

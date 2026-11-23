@@ -46,6 +46,22 @@ export function annualComparison(current: CallCounts, previous: CallCounts) {
   }));
 }
 
+/**
+ * Media aritmetica dos totais anuais efetivamente observados.
+ * Com apenas um ano, retorna o proprio valor como referencia descritiva;
+ * nao representa uma media de comparacao entre dois anos.
+ */
+export function availableAnnualMean(
+  current: number, previous: number, hasCurrent: boolean, hasPrevious: boolean,
+): number | null {
+  if (![current, previous].every(value => Number.isSafeInteger(value) && value >= 0)) {
+    throw new Error('Volume anual invalido.');
+  }
+  const count = Number(hasCurrent) + Number(hasPrevious);
+  if (!count) return null;
+  return ((hasCurrent ? current : 0) + (hasPrevious ? previous : 0)) / count;
+}
+
 export type ExtensionCount = { extension: string; answered: number };
 export function parseExtensionResponse(payload: unknown): ExtensionCount[] {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Resposta de ramais invalida.');

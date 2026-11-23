@@ -55,15 +55,17 @@ for (const input of [
 
 test('validate public snapshot without treating missing history as zero', () => {
   const raw = lib.parseQueueSnapshot([queue(1, 10, 7, 1, 1)]);
-  const output = lib.parseQueueApiResponse({ ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z' });
+  const output = lib.parseQueueApiResponse({ ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z', sourceUpdatedAt: '2026-11-23T09:00:00Z' });
   assert.equal(output.summary.total, 10);
   assert.equal(output.rows[0].abandoned, 2);
   assert.equal(output.consultedAt, '2026-11-23T10:00:00Z');
+  assert.equal(output.sourceUpdatedAt, '2026-11-23T09:00:00Z');
 });
 test('public response rejects wrong origin or mismatched summaries', () => {
   const raw = lib.parseQueueSnapshot([queue(1, 10, 7, 1, 1)]);
-  const baseline = { ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z' };
+  const baseline = { ...raw, source: 'listar_filas', kind: 'latest_snapshot', consultedAt: '2026-11-23T10:00:00Z', sourceUpdatedAt: '2026-11-23T09:00:00Z' };
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, source: 'outra_tabela' }));
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, summary: { ...raw.summary, total: 40 } }));
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, rows: [] }));
+  assert.throws(() => lib.parseQueueApiResponse({ ...baseline, sourceUpdatedAt: null }));
 });

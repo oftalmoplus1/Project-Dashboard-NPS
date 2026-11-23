@@ -99,3 +99,22 @@
 .topic-delete-confirm p{margin:0;color:var(--muted);line-height:1.6}
 .topic-inline-form .outline-button,.topic-delete-confirm .outline-button{justify-content:center}
 @media(max-width:620px){.topic-action-buttons{justify-content:stretch}.topic-action-buttons button{flex:1;justify-content:center}}
+
+
+/* Desvinculacao de um dashboard dentro do topico: sem exclusao global. */
+.topic-dashboard-items li.topic-dashboard-entry{display:block;padding:10px 12px}
+.topic-dashboard-row{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.topic-dashboard-row>a{min-width:0;font-weight:600}
+.topic-dashboard-entry-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.topic-dashboard-entry-actions .outline-button{font-size:11px;padding:6px 9px;min-height:30px}
+.topic-unlink-button{color:var(--red)}
+.topic-unlink-confirm{display:grid;gap:10px;padding:14px 0 4px;margin-top:12px;border-top:1px solid var(--border);font-size:12px}
+.topic-unlink-confirm>strong{font-size:12px}
+.topic-unlink-confirm>p{margin:0;line-height:1.6;color:var(--muted)}
+.topic-unlink-confirm>label{font-weight:700}
+.topic-unlink-confirm input{min-width:0;flex:1;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text)}
+@media(max-width:620px){
+ .topic-dashboard-row{flex-wrap:wrap}
+ .topic-dashboard-entry-actions{width:100%;justify-content:space-between}
+ .topic-unlink-confirm .outline-button,.topic-unlink-confirm .primary-button{justify-content:center}
+}

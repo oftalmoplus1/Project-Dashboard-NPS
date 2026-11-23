@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck, ChevronDown, Link2, Pencil, Trash2, X, Save } from 'lucide-react';
+import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck, ChevronDown, Link2, Pencil, Trash2, X, Save, Unlink } from 'lucide-react';
 import { callCenterTopicLabel } from '@/lib/call-center-design';
 import Link from 'next/link';
 import { existingDashboards, type DashboardItem } from '@/lib/dashboard-registry';
@@ -28,6 +28,9 @@ export default function ManageTopics(){
  const [itemsByTopic,setItemsByTopic]=useState<Record<string,DashboardItem[]>>({});
  const [loadingTopic,setLoadingTopic]=useState(false);
  const [linking,setLinking]=useState('');
+ const [pendingUnlink,setPendingUnlink]=useState<{slug:string;codigo:string;nome:string}|null>(null);
+ const [confirmCode,setConfirmCode]=useState('');
+ const [unlinking,setUnlinking]=useState(false);
  const [editingSlug,setEditingSlug]=useState<string|null>(null);
  const [editName,setEditName]=useState('');
  const [deletingSlug,setDeletingSlug]=useState<string|null>(null);
@@ -97,12 +100,13 @@ export default function ManageTopics(){
   } finally {setLoadingTopic(false);}
  }
  function toggleTopic(slug:string){
+  setPendingUnlink(null);setConfirmCode('');
   if(opened===slug){setOpened(null);return;}
   setOpened(slug);
   void loadDashboards(slug);
  }
  async function associate(slug:string,codigo:string){
-  if(linking)return;
+  if(linking||unlinking)return;
   setLinking(codigo);
   setError('');
   setMessage('');
@@ -122,6 +126,40 @@ export default function ManageTopics(){
   }catch{
    setError('Não foi possível concluir a associação.');
   }finally{setLinking('');}
+ }
+
+ function prepareUnlink(slug:string,dashboard:DashboardItem){
+  if(unlinking||linking)return;
+  setPendingUnlink({slug,codigo:dashboard.codigo,nome:dashboard.nome});
+  setConfirmCode('');setError('');setMessage('');
+ }
+ async function unlinkDashboard(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();
+  const target=pendingUnlink;
+  if(!target||confirmCode!==target.codigo||unlinking||linking)return;
+  setUnlinking(true);setError('');setMessage('');
+  try{
+   const response=await fetch('/api/catalogo/topicos/'+encodeURIComponent(target.slug)+'/dashboards',{
+    method:'DELETE',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({codigo:target.codigo,confirmar_codigo:confirmCode})
+   });
+   const data:{error?:string;result?:{permissoes_contextuais_revogadas?:number}}=await response.json();
+   if(!response.ok){
+    setError(data.error??'Não foi possível remover o dashboard do tópico.');
+    return;
+   }
+   setItemsByTopic(old=>({...old,
+     [target.slug]:(old[target.slug]??[]).filter(item=>item.codigo!==target.codigo)
+   }));
+   setPendingUnlink(null);setConfirmCode('');
+   const revoked=data.result?.permissoes_contextuais_revogadas??0;
+   setMessage('Dashboard removido deste tópico. Definição e dados originais preservados.'
+    +(revoked>0?' Permissões contextuais revogadas: '+revoked+'.':''));
+   await Promise.all([load(),loadDashboards(target.slug)]);
+   window.dispatchEvent(new Event('dashboard-topics-updated'));
+  }catch{setError('Não foi possível remover o dashboard do tópico.');}
+  finally{setUnlinking(false);}
  }
 
  function startEdit(topico:Topico) {
@@ -245,7 +283,35 @@ export default function ManageTopics(){
         {(itemsByTopic[t.slug]??[]).length===0
          ?<p>Nenhum dashboard associado.</p>
          :<ul className="topic-dashboard-items">
-          {(itemsByTopic[t.slug]??[]).map(d=><li key={d.codigo}><Link href={`/meus-dashboards/${t.slug}?dashboard=${d.codigo}`}>{d.nome}</Link><small>{d.estado}</small></li>)}
+          {(itemsByTopic[t.slug]??[]).map(d=><li key={d.codigo} className="topic-dashboard-entry">
+           <div className="topic-dashboard-row">
+            <Link href={`/meus-dashboards/${t.slug}?dashboard=${d.codigo}`}>{d.nome}</Link>
+            <div className="topic-dashboard-entry-actions">
+             <small>{d.estado}</small>
+             <button type="button" className="outline-button topic-unlink-button"
+              onClick={()=>prepareUnlink(t.slug,d)} disabled={unlinking||!!linking||loadingTopic}
+              aria-label={`Remover ${d.nome} do tópico ${callCenterTopicLabel(t)}`}>
+              <Unlink size={14}/> Remover
+             </button>
+            </div>
+           </div>
+           {pendingUnlink?.slug===t.slug&&pendingUnlink.codigo===d.codigo&&
+            <form className="topic-unlink-confirm" onSubmit={event=>void unlinkDashboard(event)}>
+             <strong>Remover “{d.nome}” apenas de {callCenterTopicLabel(t)}?</strong>
+             <p>O dashboard continuará disponível para outros tópicos. Permissões individuais ligadas a este vínculo serão revogadas. Nenhum gráfico ou dado operacional será apagado.</p>
+             <label htmlFor={`unlink-${t.slug}-${d.codigo}`}>Digite <b>{d.codigo}</b> para confirmar</label>
+             <div className="topic-create-row">
+              <input id={`unlink-${t.slug}-${d.codigo}`} value={confirmCode}
+               onChange={event=>setConfirmCode(event.target.value)} disabled={unlinking}
+               autoComplete="off" maxLength={100}/>
+              <button type="submit" className="primary-button"
+               disabled={unlinking||confirmCode!==d.codigo}><Unlink size={14}/>
+               {unlinking?'Removendo...':'Confirmar remoção'}</button>
+              <button type="button" className="outline-button" disabled={unlinking}
+               onClick={()=>{setPendingUnlink(null);setConfirmCode('');}}>Cancelar</button>
+             </div>
+            </form>}
+          </li>)}
          </ul>}
         <div className="topic-association-options">
          <strong>Adicionar dashboard existente</strong>

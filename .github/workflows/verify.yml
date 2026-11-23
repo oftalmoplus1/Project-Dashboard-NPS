@@ -32,6 +32,8 @@ jobs:
       - run: npm run build
       - name: Validar rotas HTTP com Supabase simulado
         run: node tests/smoke-http.mjs
+      - name: Validar CRUD e inventario administrativo com Supabase simulado
+        run: node tests/smoke-admin-catalog.mjs
       - name: Reutilizar navegador da versao fixada
         uses: actions/cache@v4
         with:

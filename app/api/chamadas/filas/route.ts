@@ -34,10 +34,13 @@ export async function GET() {
       cache: 'no-store',
       signal: AbortSignal.timeout(10000),
     });
-    if (!upstream.ok) {
-      return NextResponse.json({ error: 'Fonte listar_filas indisponivel ou sem permissao de leitura.' }, {
-        status: 503, headers,
+    if (upstream.status === 401 || upstream.status === 403) {
+      return NextResponse.json({ error: 'Acesso a listar_filas negado pelo Supabase.' }, {
+        status: 403, headers,
       });
+    }
+    if (!upstream.ok) {
+      return NextResponse.json({ error: 'Fonte listar_filas indisponivel.' }, { status: 503, headers });
     }
     const contentRange = upstream.headers.get('Content-Range');
     const match = contentRange?.match(/^\d+-\d+\/(\d+)$/);

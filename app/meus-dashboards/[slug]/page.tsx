@@ -69,7 +69,7 @@ export default async function TopicDashboardPage({
  return <AppShell
   section="chamadas"
   role={user.role}
-  callView={view?.callView === 'tempos-diarios' ? 'tempos-diarios' : 'overview'}
+  callView={view?.callView ?? 'overview'}
   topic={{nome:topic.nome,slug:topic.slug,dashboards:rows,activeCode:chosen??null}}
  />;
 }

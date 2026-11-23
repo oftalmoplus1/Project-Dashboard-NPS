@@ -85,3 +85,17 @@
 /* Acessibilidade dos graficos demonstrativos com tooltip padronizado. */
 .bar-slot[role="button"]{cursor:pointer;border-radius:6px}
 .bar-slot[role="button"]:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
+
+
+/* Gerenciar topicos: edicao e exclusao confirmada sem modais improvisados. */
+.topic-action-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--border)}
+.topic-action-buttons .outline-button{font-size:11px}
+.topic-delete-button{color:var(--red)}
+.topic-inline-form,.topic-delete-confirm{display:grid;gap:10px;padding:16px;border-top:1px solid var(--border);background:var(--soft);font-size:12px}
+.topic-inline-form label,.topic-delete-confirm label{font-size:12px;font-weight:700}
+.topic-inline-form input,.topic-delete-confirm input{min-width:0;flex:1;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text);padding:11px 13px}
+.topic-delete-confirm{background:rgba(230,0,0,.035)}
+.topic-delete-confirm>strong{font-size:13px}
+.topic-delete-confirm p{margin:0;color:var(--muted);line-height:1.6}
+.topic-inline-form .outline-button,.topic-delete-confirm .outline-button{justify-content:center}
+@media(max-width:620px){.topic-action-buttons{justify-content:stretch}.topic-action-buttons button{flex:1;justify-content:center}}

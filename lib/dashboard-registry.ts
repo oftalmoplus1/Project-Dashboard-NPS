@@ -2,10 +2,14 @@
  * Registro fechado dos dashboards legados realmente implementados no aplicativo.
  * Cada codigo e persistido uma unica vez no catalogo; os topicos referenciam
  * essa definicao sem duplicar a consulta ou o grafico.
- * Novos graficos do editor visual terao registro/renderer separados em fase futura.
+ * Inclui as cinco visualizacoes existentes do Call Center, sem adicionar
+ * fontes, graficos ou permissoes. Novos graficos do editor visual sao outra fase.
  */
 export const existingDashboards = [
-  {codigo:'visao-geral-chamadas',nome:'Visão geral de Chamadas',callView:'geral'},
+  {codigo:'visao-geral-chamadas',nome:'Visão geral de Chamadas',callView:'overview'},
+  {codigo:'chamadas-por-mes',nome:'Chamadas por mês',callView:'month'},
+  {codigo:'chamadas-por-hora',nome:'Chamadas por hora',callView:'hour'},
+  {codigo:'comparativo-anual-chamadas',nome:'Comparativo anual',callView:'annual'},
   {codigo:'tma-tme-diario',nome:'TMA e TME diário',callView:'tempos-diarios'},
 ] as const;
 

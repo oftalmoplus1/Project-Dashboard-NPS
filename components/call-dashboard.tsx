@@ -115,7 +115,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     try { return buildAggregateDashboard(snapshot.rows, range); } catch { return null; }
   }, [range, rangeKey, snapshot]);
   const activeBucket = data?.buckets.find(bucket => bucket.key === selectedBucket);
-  const hoveredItem = data?.buckets.find(bucket => bucket.key === (hoveredBucket ?? selectedBucket));
+  const hoveredItem = data?.buckets.find(bucket => bucket.key === hoveredBucket);
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
   const times = extra?.key === rangeKey && extra.status === 'ready' ? extra : null;
   const timeStatus = extra?.key !== rangeKey ? 'loading' : extra.status;

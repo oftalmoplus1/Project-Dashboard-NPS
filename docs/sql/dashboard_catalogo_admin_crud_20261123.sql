@@ -21,6 +21,34 @@ BEGIN
 END;
 $check$;
 
+-- Corrige somente o topico historico 'Relatorios' caso ainda tenha o nome legado.
+-- Preserva slug, id, ACL, ordem e vinculos. Na auditoria, UUID nil identifica
+-- uma migracao operacional do sistema, nao um usuario humano.
+DO $rename$
+DECLARE
+ v_id uuid;
+ v_nome_antigo text;
+BEGIN
+ SELECT t.id,t.nome INTO v_id,v_nome_antigo
+   FROM dashboard_catalog.topicos t
+   WHERE t.slug='relatorios' AND t.nome IN ('Relatórios','Relatorios')
+   FOR UPDATE;
+ IF v_id IS NOT NULL THEN
+   UPDATE dashboard_catalog.topicos SET nome='Call Center',
+      atualizado_em=pg_catalog.now() WHERE id=v_id;
+   INSERT INTO dashboard_catalog.auditoria
+      (operador_id,acao,tipo_objeto,objeto_id,contexto)
+   VALUES (
+      '00000000-0000-0000-0000-000000000000'::uuid,
+      'migrar_nome','topico',v_id,
+      pg_catalog.jsonb_build_object('slug','relatorios',
+        'nome_anterior',v_nome_antigo,'nome_novo','Call Center',
+        'origem','migracao_sql_administrativa','executor_role',current_user)
+   );
+ END IF;
+END;
+$rename$;
+
 -- Mantem o contrato e a auditoria da RPC existente; amplia apenas a lista
 -- fechada para as cinco visualizacoes efetivamente implementadas.
 CREATE OR REPLACE FUNCTION dashboard_catalog.vincular_dashboard_existente(

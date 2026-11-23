@@ -4,6 +4,7 @@ import { useId, useState, type FocusEvent, type MouseEvent } from 'react';
 import type { ChartMetric } from '@/lib/call-chart-data';
 import { availableAnnualMean } from '@/lib/ligsim-report-data';
 import styles from './call-center.module.css';
+import ChartTooltip, { pointFromMouse, pointFromFocus } from './chart-tooltip';
 
 type Metric = { key: ChartMetric; current: number; previous: number; variation: number | null; mean: number };
 type Props = {
@@ -39,14 +40,6 @@ function axisCeiling(values: number[]): number {
   return tick * 4;
 }
 
-function tooltipPosition(clientX: number, clientY: number): { x: number; y: number } {
-  // Keep the floating information inside the viewport, including narrow mobile screens.
-  const width = Math.min(260, Math.max(180, window.innerWidth - 24));
-  const x = Math.min(window.innerWidth - width - 12, Math.max(12, clientX + 14));
-  const y = clientY + 148 > window.innerHeight ? Math.max(12, clientY - 152) : clientY + 14;
-  return { x: Math.max(12, x), y: Math.max(12, y) };
-}
-
 /**
  * Presentation only. The annual totals come from the existing aggregation module.
  * A missing year never becomes a zero. With one year available, the reference
@@ -69,15 +62,14 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
     availableAnnualMean(highlighted.current, highlighted.previous, hasCurrent, hasPrevious) : null;
 
   const showFromMouse = (event: MouseEvent<SVGRectElement>, key: ChartMetric, columnYear: number) => {
-    const { x, y } = tooltipPosition(event.clientX, event.clientY);
+    const { x, y } = pointFromMouse(event);
     setHovered(previous => previous?.key === key && previous.year === columnYear &&
       Math.abs(previous.x - x) < 5 && Math.abs(previous.y - y) < 5 ?
       previous : { key, year: columnYear, x, y });
   };
 
   const showFromKeyboard = (event: FocusEvent<SVGRectElement>, key: ChartMetric, columnYear: number) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const { x, y } = tooltipPosition(rect.left + rect.width / 2, rect.top + Math.min(20, rect.height / 2));
+    const { x, y } = pointFromFocus(event);
     setHovered({ key, year: columnYear, x, y });
   };
 
@@ -170,24 +162,18 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
       </svg>
     </div>
 
-    {hovered && highlighted && <div
-      data-testid="annual-column-tooltip"
-      role="tooltip" id={tooltipId} className={styles.annualFloatingTooltip}
-      style={{ left: hovered.x, top: hovered.y }}>
-      <strong>{labels[highlighted.key]} · {hovered.year}</strong>
-      <span className={styles.annualFloatingValue}>
-        {format(hovered.year === year ? highlighted.current : highlighted.previous)} chamadas
-      </span>
-      <span>{availableYears === 2 ?
-        'Média dos 2 anos: ' + format(hoveredMean ?? 0) :
-        'Referência: ' + format(hoveredMean ?? 0) + ' (apenas 1 ano com dados)'}</span>
-      <span>{hasCurrent && hasPrevious ?
-        'Variação: ' + (highlighted.variation === null ?
-          'indefinida (ano anterior com zero)' :
-          (highlighted.variation > 0 ? '+' : '') +
-          highlighted.variation.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%') :
-        'Variação indisponível: falta histórico anual'}</span>
-    </div>}
+    <ChartTooltip id={tooltipId} testId="annual-column-tooltip"
+      open={Boolean(hovered && highlighted)}
+      point={hovered ? { x: hovered.x, y: hovered.y } : null}
+      title={hovered && highlighted ? labels[highlighted.key] + ' · ' + hovered.year : ''}
+      values={hovered && highlighted ? [
+        { label: 'Chamadas', value: format(hovered.year === year ? highlighted.current : highlighted.previous), color: hovered.year === year ? currentColor : previousColor },
+        { label: availableYears === 2 ? 'Média dos 2 anos' : 'Referência', value: hoveredMean === null ? '—' : format(hoveredMean) + (availableYears === 2 ? '' : ' (apenas 1 ano com dados)') },
+        { label: hasCurrent && hasPrevious ? 'Variação' : 'Variação indisponível', value: hasCurrent && hasPrevious
+          ? highlighted.variation === null ? 'Indefinida (base zero)' :
+            (highlighted.variation > 0 ? '+' : '') + format(highlighted.variation) + '%'
+          : 'falta histórico anual' },
+      ] : []}/>
     <p className={styles.annualTooltip} role="status">
       {highlighted && hovered ?
         labels[highlighted.key] + ' · ' + hovered.year + ': ' +

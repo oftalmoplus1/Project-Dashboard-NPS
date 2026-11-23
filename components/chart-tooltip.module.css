@@ -1,0 +1,28 @@
+.tooltip {
+  position: fixed;
+  z-index: 5000;
+  width: min(270px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--panel);
+  box-shadow: 0 14px 36px rgb(0 0 0 / .22);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(7px) scale(.985);
+  transition: opacity 180ms ease-out, transform 180ms ease-out, left 90ms ease-out, top 90ms ease-out;
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.tooltip[data-open='true'] { opacity: 1; transform: translateY(0) scale(1); }
+.title { display: block; margin-bottom: 8px; font-weight: 750; font-size: 13px; }
+.line { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 5px; }
+.label { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); }
+.swatch { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 2px; }
+.value { flex: 0 0 auto; font-weight: 750; color: var(--text); }
+.note { margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+@media (prefers-reduced-motion: reduce) { .tooltip { transition: none; transform: none; } }

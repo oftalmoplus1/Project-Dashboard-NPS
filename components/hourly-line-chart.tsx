@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { parseHourlyRows, sumCounts, type HourRow, type ChartMetric } from '@/lib/call-chart-data';
+import ChartTooltip, { pointFromMouse, pointFromFocus, type TooltipPoint } from './chart-tooltip';
 
 const series = [
   { key: 'atendidas', label: 'Atendidas', color: '#12b981' },
@@ -16,6 +17,7 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
+  const [tooltipPoint, setTooltipPoint] = useState<TooltipPoint | null>(null);
   const [meanMetric, setMeanMetric] = useState<ChartMetric>('total');
   useEffect(() => {
     const controller = new AbortController();
@@ -70,20 +72,25 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
             {rows.map(row => <circle key={row.hora} cx={x(row.hora)} cy={y(row[item.key])} r={highlight === row.hora ? 5 : 3} fill={item.color} />)}
           </g>)}
           {highlight !== null && <line x1={x(highlight)} x2={x(highlight)} y1={18} y2={263} stroke="var(--muted)" strokeDasharray="4 4" />}
-          {activeRow && <g pointerEvents="none" transform={`translate(${Math.min(x(activeRow.hora) + 10, 700)} 25)`}>
-            <rect width={195} height={105} rx={8} fill="var(--panel)" stroke="var(--border)" />
-            <text x={10} y={20} fontSize={12} fill="var(--text)">{activeRow.hora}h - {activeRow.hora}h59</text>
-            {series.map((item, index) => <text key={item.key} x={10} y={42 + index * 23} fontSize={12} fill="var(--text)">{item.label}: {fmt(activeRow[item.key])}</text>)}
-          </g>}
           {rows.map(row => <rect key={row.hora} x={Math.max(36, x(row.hora) - 18)} y={18} width={36} height={250}
             fill="transparent" role="button" tabIndex={0} aria-pressed={selected === row.hora}
             aria-label={`${row.hora}h: ${row.total} recebidas, ${row.atendidas} atendidas, ${row.abandonadas} abandonadas`}
-            onMouseEnter={() => setHovered(row.hora)} onMouseLeave={() => setHovered(null)}
-            onFocus={() => setHovered(row.hora)} onBlur={() => setHovered(null)}
-            onClick={() => setSelected(selected === row.hora ? null : row.hora)}
+            onMouseEnter={event => { setHovered(row.hora); setTooltipPoint(pointFromMouse(event)); }}
+            onMouseMove={event => setTooltipPoint(pointFromMouse(event))}
+            onMouseLeave={() => setHovered(null)}
+            onFocus={event => { setHovered(row.hora); setTooltipPoint(pointFromFocus(event)); }}
+            onBlur={() => setHovered(null)}
+            onClick={event => { setTooltipPoint(pointFromMouse(event)); setSelected(selected === row.hora ? null : row.hora); }}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelected(selected === row.hora ? null : row.hora); } }} />)}
         </svg>
       </div>
+      <ChartTooltip open={Boolean(activeRow)} point={tooltipPoint}
+        title={activeRow ? `${activeRow.hora}h – ${activeRow.hora}h59` : ''}
+        values={activeRow ? [
+          ...series.map(item => ({ label: item.label, value: fmt(activeRow[item.key]), color: item.color })),
+          { label: 'Sem atendimento', value: fmt(activeRow.nao_atendidas) },
+          { label: 'Outras', value: fmt(activeRow.outras) },
+        ] : []}/>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18 }}>
         {series.map(item => <span key={item.key} style={{ fontSize: 12 }}><span aria-hidden="true" style={{ display: 'inline-block', width: 9, height: 9, marginRight: 6, background: item.color }} />{item.label}</span>)}
         <label>Média de <select aria-label="Serie da media horaria" value={meanMetric} onChange={event => setMeanMetric(event.target.value as ChartMetric)}>

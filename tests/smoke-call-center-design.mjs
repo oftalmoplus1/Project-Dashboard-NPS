@@ -82,6 +82,8 @@ try {
   await check('unauthenticated page still redirects to login', async () => { await page.goto(`${origin}/chamadas`); assert.match(page.url(), /\/login/); });
   await context.addCookies([{ name: 'dashboard_tools_access_token', value: 'design-admin-session', domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Lax' }]);
   await page.goto(`${origin}/chamadas`);
+  const menu = page.getByRole('navigation', { name: 'Dashboards do Call Center' });
+  const nav = label => menu.getByRole('link', { name: label, exact: true });
   const totals = page.getByRole('region', { name: 'Resumo de chamadas', exact: true });
   await totals.getByText('120', { exact: true }).waitFor();
   await check('Call Center is a label change; authorized URL is preserved', async () => {
@@ -99,38 +101,54 @@ try {
     const text = await page.getByRole('region', { name: 'TME de fila', exact: true }).innerText();
     assert.match(text, /Aguardando validação SQL/); assert.ok(!text.includes('00:40'));
   });
-  await check('only overview is rendered initially; no monthly or hourly requests', async () => {
-    assert.equal(await page.getByRole('tab').count(), 5);
+  await check('one upper menu shows six Call Center dashboards and loads only overview initially', async () => {
+    assert.equal(await menu.getByRole('link').count(), 6);
+    assert.equal(await nav('Visão geral').getAttribute('aria-current'), 'page');
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por mês', exact: true }).count(), 0);
   });
   await mkdir('artifacts/call-center-design', { recursive: true });
   await page.screenshot({ path: 'artifacts/call-center-design/desktop-overview.png', fullPage: true });
-  await check('arrow keys move focus and Enter activates the monthly tab', async () => {
-    await page.getByRole('tab', { name: 'Visão geral', exact: true }).focus();
-    await page.keyboard.press('ArrowRight');
-    assert.equal(await page.getByRole('tab', { name: 'Por mês', exact: true }).evaluate(el => el === document.activeElement), true);
-    assert.equal(await page.getByRole('tab', { name: 'Visão geral', exact: true }).getAttribute('aria-selected'), 'true');
+  await check('Tab and Enter navigate the unified dashboard links', async () => {
+    await nav('Visão geral').focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await nav('Por mês').evaluate(el => el === document.activeElement), true);
     await page.keyboard.press('Enter');
     await page.getByRole('heading', { name: 'Chamadas por mês', exact: true }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).count(), 0);
+    assert.equal(await nav('Por mês').getAttribute('aria-current'), 'page');
   });
-  await check('year selection survives switching tabs', async () => {
-    await page.getByLabel('Selecionar ano do grafico mensal').selectOption(String(year - 1));
-    await page.getByRole('tab', { name: 'Por hora', exact: true }).click();
+  await check('monthly chart uses vertical grouped columns and smooth accessible tooltip', async () => {
+    await page.getByLabel('Selecionar ano do grafico mensal').selectOption(String(year));
+    const chart = page.getByRole('group', { name: 'Atendidas, recebidas e abandonadas por mês' });
+    await chart.waitFor();
+    assert.match(await page.getByText('Colunas verticais agrupadas; recebidas incluem todas as situações.').innerText(), /Colunas verticais/);
+    const month = chart.locator('rect[role="button"]').last();
+    await month.hover();
+    const tooltip = page.getByRole('tooltip');
+    await tooltip.waitFor({ state: 'visible' });
+    assert.match(await tooltip.innerText(), /Recebidas/);
+    assert.match(await tooltip.innerText(), /Atendidas/);
+    assert.match(await tooltip.innerText(), /Abandonadas/);
+    await month.focus();
+    assert.equal(await tooltip.getAttribute('data-open'), 'true');
+  });
+  await check('hourly chart uses same tooltip on hover and keyboard', async () => {
+    await nav('Por hora').click();
     await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).waitFor();
-    await page.getByRole('tab', { name: 'Por mês', exact: true }).click();
-    assert.equal(await page.getByLabel('Selecionar ano do grafico mensal').inputValue(), String(year - 1));
+    const chart = page.getByRole('group', { name: /Chamadas recebidas, atendidas e abandonadas por hora/ });
+    const hour = chart.locator('rect[role="button"]').nth(8);
+    await hour.hover();
+    const tooltip = page.getByRole('tooltip');
+    await tooltip.waitFor({ state: 'visible' });
+    assert.match(await tooltip.innerText(), /8h/);
+    await hour.focus();
+    assert.equal(await tooltip.getAttribute('data-open'), 'true');
   });
-  await check('custom period survives overview and hourly navigation', async () => {
-    await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
+  await check('period filters and overview remain functional after link navigation', async () => {
+    await nav('Visão geral').click();
     await page.getByRole('button', { name: 'Personalizado', exact: true }).click();
     await page.getByLabel('Data inicial', { exact: true }).fill('2025-01-02');
     await page.getByLabel('Data final', { exact: true }).fill('2025-01-03');
-    await page.getByRole('tab', { name: 'Por hora', exact: true }).click();
-    assert.equal(await page.getByLabel('Data inicial', { exact: true }).inputValue(), '2025-01-02');
-    assert.equal(await page.getByLabel('Data final', { exact: true }).inputValue(), '2025-01-03');
-    await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
     await totals.getByText('0', { exact: true }).first().waitFor();
     assert.ok((await page.getByRole('region', { name: 'Taxa de abandono', exact: true }).innerText()).includes('—'));
     await page.getByRole('button', { name: 'Hoje', exact: true }).click();
@@ -151,13 +169,13 @@ try {
         body: JSON.stringify({ rows: [{ periodo_inicio: date + 'T08:00:00',
           total: count, atendidas: count / 2, abandonadas: count / 4, nao_atendidas: count / 4, outras: 0 }] }) });
     });
-    await page.getByRole('tab', { name: /Comparativo anual/ }).click();
+    await nav('Comparativo anual').click();
     // Monthly tab intentionally retains an older year: select the target year explicitly.
     await page.getByLabel('Ano da comparação anual').selectOption(String(year));
     await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
     const chart = page.getByTestId('annual-vertical-chart');
     await chart.waitFor();
-    assert.match(await page.getByRole('tabpanel').innerText(), /Colunas verticais agrupadas/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Colunas verticais agrupadas/);
     for (const metric of ['total', 'atendidas', 'abandonadas']) {
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + year).count(), 1);
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + (year - 1)).count(), 1);
@@ -173,18 +191,18 @@ try {
     const totalColumn = page.getByTestId('annual-column-total-' + year);
     await totalColumn.hover();
     const floating = page.getByTestId('annual-column-tooltip');
-    await floating.waitFor();
+    await floating.waitFor({ state: 'visible' });
     assert.match(await floating.innerText(), /Recebidas/);
     assert.match(await floating.innerText(), new RegExp(String(year)));
-    assert.match(await floating.innerText(), /chamadas/);
+    assert.match(await floating.innerText(), /chamadas/i);
     assert.match(await floating.innerText(), /Média dos 2 anos/);
     await page.mouse.move(12, 12);
-    assert.equal(await floating.count(), 0, 'tooltip disappears on pointer exit');
+    await page.locator('[data-testid="annual-column-tooltip"][data-open="false"]').waitFor();
     await totalColumn.focus();
     await floating.waitFor();
     await page.getByRole('status').filter({ hasText: 'Recebidas · ' + year }).waitFor();
     await page.getByLabel('Série da média anual').focus();
-    assert.equal(await floating.count(), 0, 'tooltip disappears on blur');
+    await page.locator('[data-testid="annual-column-tooltip"][data-open="false"]').waitFor();
     await page.screenshot({ path: 'artifacts/call-center-design/desktop-annual-vertical.png', fullPage: true });
 
     // Real production condition: current year is present and prior year has no records.
@@ -199,8 +217,8 @@ try {
     const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
     await singleYearLine.waitFor({ state: 'attached' });
     assert.equal(await singleYearLine.getAttribute('y1'), await singleYearLine.getAttribute('y2'));
-    assert.match(await page.getByRole('tabpanel').innerText(), /único ano com dados/);
-    assert.match(await page.getByRole('tabpanel').innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /único ano com dados/);
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
     await totalColumn.hover();
     await floating.waitFor();
     assert.match(await floating.innerText(), /apenas 1 ano com dados/);
@@ -223,7 +241,7 @@ try {
         { extension: '2001', answered: 8 }, { extension: '2002', answered: 14 },
       ] }),
     }));
-    await page.getByRole('tab', { name: /Por ramal/ }).click();
+    await nav('Por ramal').click();
     await page.getByRole('heading', { name: 'Chamadas atendidas por ramal', exact: true }).waitFor();
     assert.equal(await page.getByText('2002', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Consultar', exact: true }).click();
@@ -231,7 +249,7 @@ try {
     assert.equal(await page.getByText('14', { exact: true }).count(), 1);
     await page.unroute('**/api/chamadas/ramais?*');
   });
-  await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
+  await nav('Visão geral').click();
   for (const width of [375, 768, 1440]) await check(`no document overflow at ${width}px`, async () => {
     await page.setViewportSize({ width, height: 1000 });
     const immediate = await measureViewport();
@@ -244,13 +262,13 @@ try {
       const boxes = await totals.locator('dd').evaluateAll(els => els.map(el => ({ top: el.getBoundingClientRect().top, right: el.getBoundingClientRect().right })));
       assert.ok(boxes[0].top < boxes[1].top && boxes[1].top < boxes[2].top);
       await page.screenshot({ path: 'artifacts/call-center-design/mobile-overview.png', fullPage: true });
-      await page.getByRole('tab', { name: 'Por hora', exact: true }).click();
+      await nav('Por hora').click();
       await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).waitFor();
       await settleLayout();
       const hourly = await measureViewport();
       console.log('HOURLY_VIEWPORT_DIAGNOSTIC=' + JSON.stringify(hourly));
       assert.ok(hourly.document <= width + 2);
-      await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
+      await nav('Visão geral').click();
     }
   });
   await check('dark theme remains readable and functional', async () => {

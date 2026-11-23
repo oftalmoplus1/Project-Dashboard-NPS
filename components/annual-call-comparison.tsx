@@ -2,12 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { localToday, parseAggregateRows, type ChartMetric } from '@/lib/call-chart-data';
-import { annualComparison, annualMetrics, availableAnnualMean, comparisonWindows } from '@/lib/ligsim-report-data';
+import { annualComparison, annualMetrics, comparisonWindows } from '@/lib/ligsim-report-data';
 import AnnualVerticalColumns from './annual-vertical-columns';
 import styles from './call-center.module.css';
 
 const labels: Record<ChartMetric, string> = { total: 'Recebidas', atendidas: 'Atendidas', abandonadas: 'Abandonadas' };
-const format = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 type Snapshot = { key: string; current: ReturnType<typeof annualMetrics>; previous: ReturnType<typeof annualMetrics>; currentRows: number; previousRows: number };
 type Props = { year: number; onYearChange: (value: number) => void; currentYear: number; refreshKey: number };
 
@@ -53,15 +52,11 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
   const hasCurrent = snapshot?.key === key && snapshot.currentRows > 0;
   const hasPrevious = snapshot?.key === key && snapshot.previousRows > 0;
   const bothEmpty = snapshot?.key === key && !hasCurrent && !hasPrevious;
-  const chosen = metrics?.find(metric => metric.key === selected);
-  const mean = chosen && hasCurrent && hasPrevious
-    ? availableAnnualMean(chosen.current, chosen.previous, true, true) : null;
 
   return <section className="panel" style={{ padding: 20 }}>
     <div className="panel-head">
       <div>
         <h2>Comparativo anual de chamadas</h2>
-        <p>Colunas verticais agrupadas: recebidas, atendidas e abandonadas por ano, com variação percentual.</p>
       </div>
       <label>Ano <select aria-label="Ano da comparação anual" value={year}
         onChange={event => onYearChange(Number(event.target.value))}>
@@ -69,14 +64,6 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
           .map(value => <option key={value} value={value}>{value}</option>)}
       </select></label>
     </div>
-
-    {windows && <p style={{ fontSize: 12 }}>
-      Comparação {windows.current.year} x {windows.previous.year}.
-      {windows.partial ?
-        ' Períodos equivalentes: 01/01 até ' + windows.current.end.slice(8) + '/' +
-        windows.current.end.slice(5, 7) + ' em cada ano.' :
-        ' Ambos os anos civis completos.'}
-    </p>}
 
     <label className={styles.annualMeanSelect}>
       Linha horizontal de média
@@ -95,11 +82,6 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
     </p>}
 
     {metrics && !bothEmpty && <div className={styles.annualResults}>
-      {(!hasCurrent || !hasPrevious) && <p role="status">
-        Um dos anos não contém registros. Ausência de histórico não significa zero chamadas;
-        a variação percentual e a média entre anos estão indisponíveis; nenhuma linha de média será exibida.
-      </p>}
-
       <AnnualVerticalColumns metrics={metrics} year={year}
         hasCurrent={!!hasCurrent} hasPrevious={!!hasPrevious} meanMetric={selected}/>
 
@@ -116,17 +98,6 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
         </div>)}
       </div>
 
-      <p className={styles.annualNote}>
-        {mean === null ?
-          'Média entre anos indisponível: é necessário haver registros nos dois anos para desenhar a linha horizontal.' :
-          'Linha horizontal tracejada: média dos dois anos de ' +
-            labels[selected].toLowerCase() + ' = ' + format(mean) + '.'}
-        {' '}O aumento do volume não representa automaticamente melhora do atendimento.
-      </p>
-      <p className={styles.annualSourceNote}>
-        Os números vêm dos registros disponíveis no Supabase.
-        Consulta concluída não comprova histórico integralmente sincronizado com a LigSim.
-      </p>
     </div>}
   </section>;
 }

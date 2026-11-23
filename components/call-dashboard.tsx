@@ -34,7 +34,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [now, setNow] = useState<Date | null>(null);
-  const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[]; loadedAt: Date } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[] } | null>(null);
   const [extra, setExtra] = useState<Extra | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -75,7 +75,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
         }
         const rows = parseAggregateRows(await response.json(), { start: rangeStart, end: rangeEnd });
         sumCounts(rows);
-        if (active) setSnapshot({ key: rangeKey, rows, loadedAt: new Date() });
+        if (active) setSnapshot({ key: rangeKey, rows });
       } catch (cause) {
         if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Falha na atualização.');
       } finally { if (active) setRefreshing(false); }
@@ -119,9 +119,6 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
   const times = extra?.key === rangeKey && extra.status === 'ready' ? extra : null;
   const timeStatus = extra?.key !== rangeKey ? 'loading' : extra.status;
-  const updated = snapshot?.key === rangeKey ? new Intl.DateTimeFormat('pt-BR', {
-    timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium',
-  }).format(snapshot.loadedAt) : '—';
   const showPeriod = tab === 'overview' || tab === 'hour';
   const pending = false;
   return <div className={styles.workspace}>
@@ -189,9 +186,5 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
         refreshKey={requestNumber} />}
       {tab === item.id && item.id === 'extension' && <CallExtensionsChart refreshKey={requestNumber} />}
     </section>)}
-    <footer className={styles.metadata}>
-      {showPeriod && <div>Consulta do resumo: {updated} · Horário de Brasília.</div>}
-      <span>A consulta da tela não comprova a sincronização da origem. Ausência de registros não comprova volume zero.</span>
-    </footer>
   </div>;
 }

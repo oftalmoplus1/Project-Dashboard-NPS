@@ -50,3 +50,9 @@ import ChartTooltip, { pointFromMouse, pointFromFocus } from './chart-tooltip';
 5. Executar `npm run typecheck`, `npm run lint` e `npm run build`; revisar manualmente os seis gráficos no `dash-hub` após publicar.
 
 **Observação:** a rota pública de implantação e o Supabase não participam desta alteração de interface.
+
+## Limpeza visual aprovada (23/11/2026)
+
+As descrições de rodapé do Call Center e os blocos de texto explicativos do Comparativo Anual e do gráfico diário de tempos foram retirados da **interface** a pedido do usuário. O objetivo é reduzir ruído visual. Permanecem intactos os títulos, seletores, legendas, tooltips, estados de erro e ausência de dados, nomes de métricas e suas regras matemáticas.
+
+Os esclarecimentos funcionais continuam valendo: ausência de histórico não equivale a volume zero; a linha de média anual só aparece quando existem registros nos dois anos; TET legado não é TME de fila. Essas regras são preservadas pelo código, pelos rótulos das métricas e pela documentação, sem repetir os parágrafos descartados.

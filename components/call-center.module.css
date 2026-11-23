@@ -17,7 +17,9 @@
 .header p { margin: 6px 0 0; color: var(--cc-muted); font-size: 13px; line-height: 1.5; }
 .tabs { display: flex; gap: 4px; overflow-x: auto; padding: 4px 3px 8px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
 .tab { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--cc-muted); font-size: 13px; font-weight: 600; }
-.dashboardNav { margin-bottom: 24px; }
+.dashboardNav { --cc-muted: #596674; margin-bottom: 24px; }
+:global([data-theme='dark']) .dashboardNav { --cc-muted: #b1bec9; }
+.dashboardNav .tab:focus-visible { outline: 3px solid #2d74ca; outline-offset: 2px; }
 .tab { white-space: nowrap; text-decoration: none; cursor: pointer; }
 .tab:hover { background: var(--soft); color: var(--text); }
 .tab[aria-selected='true'], .tab[aria-current='page'] { background: var(--panel); border-color: var(--border); box-shadow: inset 0 -3px 0 var(--teal); color: var(--text); }

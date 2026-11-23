@@ -25,22 +25,26 @@ const upstream = createServer(async (req, res) => {
       const role = token === 'Bearer admin-test-session' ? 'admin' : token === 'Bearer manager-test-session' ? 'manager' : null;
       return send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: role }, user_metadata: { dashboard_role: 'admin' } });
     }
-    if (url.pathname === '/rest/v1/listar_filas') {
-      assert.equal(req.method, 'GET');
+    if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+      assert.equal(req.method, 'POST');
       assert.equal(req.headers.authorization, 'Bearer admin-test-session');
-      assert.equal(req.headers.prefer, 'count=exact');
-      const selected = url.searchParams.get('select') || '';
-      assert.ok(!selected.includes('member'), 'do not export agents or membership');
+      assert.equal(req.headers['content-type'], 'application/json');
       if (mode === 'queue-denied') return send(403, {});
-      if (mode === 'queue-missing-count') return send(200, [{ id: 1, name: 'Fila Teste',
-        received: 120, answered: 80, abandon_more_30s: 8, abandon_less_30s: 2,
-        waiting_calls: 4 }]);
-      if (mode === 'queue-invalid') return send(200, [{ id: 1, name: 'Fila Teste',
-        received: 12, answered: 80, abandon_more_30s: 8, abandon_less_30s: 2,
-        waiting_calls: 4 }], { 'Content-Range': '0-0/1' });
-      return send(200, [{ id: 1, name: 'Fila Teste',
-        received: 120, answered: 80, abandon_more_30s: 8, abandon_less_30s: 2,
-        waiting_calls: 4 }], { 'Content-Range': '0-0/1' });
+      if (mode === 'queue-missing-count') return send(200, { rows: [], snapshotKind: 'latest_successful_batch', sourceUpdatedAt: new Date().toISOString() });
+      const latest = new Date(Date.now() - (mode === 'queue-stale' ? 4 * 60 * 60 * 1000 : 0)).toISOString();
+      const previous = new Date(Date.now() - 66 * 24 * 60 * 60 * 1000).toISOString();
+      return send(200, { snapshotKind: 'latest_successful_batch', sourceUpdatedAt: latest,
+        rows: mode === 'queue-out-of-batch' ? [
+          { id: 1, name: 'Fila Teste', received: 120, answered: 80,
+            abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4, updated_at: latest },
+          { id: 16, name: 'Fila antiga', received: 2, answered: 0,
+            abandon_more_30s: 0, abandon_less_30s: 1, waiting_calls: 0, updated_at: previous },
+        ] : [
+          { id: 1, name: 'Fila Teste',
+            received: mode === 'queue-invalid' ? 12 : 120,
+            answered: 80, abandon_more_30s: 8, abandon_less_30s: 2,
+            waiting_calls: 4, updated_at: latest },
+        ] });
     }
     rpcRequests++;
     assert.equal(req.method, 'POST');
@@ -105,7 +109,7 @@ try {
   await check('reject missing count instead of partial data', async () => {
     mode = 'missing-count';
     const response = await request('/api/chamadas' + query, 'admin-test-session');
-    assert.equal(response.status, 502);
+    assert.equal(response.status, 503);
     assert.equal('rows' in await response.json(), false);
   });
   await check('preserve upstream access denial', async () => { mode = 'denied'; assert.equal((await request('/api/chamadas' + query, 'admin-test-session')).status, 403); });
@@ -143,7 +147,7 @@ try {
       answered: 80, abandoned: 10, waiting: 4 }]);
     assert.ok(!JSON.stringify(body).includes('member'));
   });
-  await check('do not expose partial queue snapshots when count is unproven', async () => {
+  await check('do not expose empty queue batch', async () => {
     mode = 'queue-missing-count';
     const response = await request('/api/chamadas/filas', 'admin-test-session');
     assert.equal(response.status, 502);
@@ -151,6 +155,18 @@ try {
   });
   await check('reject queue counters inconsistent with received volume', async () => {
     mode = 'queue-invalid';
+    const response = await request('/api/chamadas/filas', 'admin-test-session');
+    assert.equal(response.status, 503);
+    assert.equal('rows' in await response.json(), false);
+  });
+  await check('reject stale last collection instead of presenting old queue totals as current', async () => {
+    mode = 'queue-stale';
+    const response = await request('/api/chamadas/filas', 'admin-test-session');
+    assert.equal(response.status, 503);
+    assert.equal('rows' in await response.json(), false);
+  });
+  await check('reject rows from a different synchronization batch', async () => {
+    mode = 'queue-out-of-batch';
     const response = await request('/api/chamadas/filas', 'admin-test-session');
     assert.equal(response.status, 503);
     assert.equal('rows' in await response.json(), false);

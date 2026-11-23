@@ -81,3 +81,7 @@
 .topic-association-options button{max-width:100%}
 .nav-topic-item .nav-item-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:760px){.topic-details-header{flex-wrap:wrap}}
+
+/* Acessibilidade dos graficos demonstrativos com tooltip padronizado. */
+.bar-slot[role="button"]{cursor:pointer;border-radius:6px}
+.bar-slot[role="button"]:focus-visible{outline:3px solid var(--teal);outline-offset:3px}

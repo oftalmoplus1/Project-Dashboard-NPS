@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './chart-tooltip.module.css';
 
@@ -28,21 +28,31 @@ export function pointFromFocus(event: { currentTarget: Element }): TooltipPoint 
 
 export default function ChartTooltip({ open, point, title, values, note, id, testId }: Props) {
   const [mounted, setMounted] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<TooltipPoint>({ x: 12, y: 12 });
   useEffect(() => setMounted(true), []);
 
-  if (!mounted) return null;
-  const offset = 14;
-  const width = Math.min(330, Math.max(180, window.innerWidth - 24));
-  const estimatedHeight = Math.min(window.innerHeight - 24, 70 + values.length * 42 + (note ? 60 : 0));
-  const x = Math.max(12, Math.min(window.innerWidth - width - 12, (point?.x ?? 12) + offset));
-  const below = (point?.y ?? 12) + estimatedHeight + offset < window.innerHeight;
-  const y = Math.max(12, Math.min(window.innerHeight - estimatedHeight - 12,
-    below ? (point?.y ?? 12) + offset : (point?.y ?? 12) - estimatedHeight - offset));
+  // Measure the actual tooltip, rather than estimating its height from the
+  // number of rows. Text can wrap and fonts differ across screen sizes.
+  useLayoutEffect(() => {
+    if (!mounted || !open || !point || !tooltipRef.current) return;
+    const bounds = tooltipRef.current.getBoundingClientRect();
+    const offset = 14;
+    const inset = 12;
+    const maxX = Math.max(inset, window.innerWidth - bounds.width - inset);
+    const maxY = Math.max(inset, window.innerHeight - bounds.height - inset);
+    const x = Math.max(inset, Math.min(maxX, point.x + offset));
+    const below = point.y + bounds.height + offset <= window.innerHeight - inset;
+    const rawY = below ? point.y + offset : point.y - bounds.height - offset;
+    const y = Math.max(inset, Math.min(maxY, rawY));
+    setPosition(previous => previous.x === x && previous.y === y ? previous : { x, y });
+  }, [mounted, open, point, title, values, note]);
 
+  if (!mounted) return null;
   return createPortal(
-    <div id={id} data-testid={testId} role="tooltip" aria-hidden={!open}
+    <div ref={tooltipRef} id={id} data-testid={testId} role="tooltip" aria-hidden={!open || !point}
       data-open={open && point !== null} className={styles.tooltip}
-      style={{ left: x, top: y }}>
+      style={{ left: position.x, top: position.y }}>
       <strong className={styles.title}>{title}</strong>
       {values.map(item => <div key={item.label} className={styles.line}>
         <span className={styles.label}>

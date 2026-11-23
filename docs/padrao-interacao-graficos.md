@@ -37,7 +37,7 @@ import ChartTooltip, { pointFromMouse, pointFromFocus } from './chart-tooltip';
 | Chamadas por mês | Colunas verticais agrupadas, médias em linha horizontal e tooltip por mês |
 | Chamadas por hora | Linhas e pontos, tooltip por faixa horária |
 | Visão geral | Colunas empilhadas, tooltip por período |
-| Comparativo anual | Colunas verticais e tooltip por ano/série; linha de média somente quando ambos os anos têm registros |
+| Comparativo anual | Colunas verticais e tooltip por ano/série; linha de média aritmética quando ambos os anos têm registros; com um ano, linha de referência explicitamente identificada, nunca média entre anos |
 | TMA e TME diário | Colunas agrupadas e tooltip por dia, preservando a distinção TEF/TET |
 | Chamadas por ramal | Barras de volume e tooltip por identificador |
 
@@ -55,4 +55,11 @@ import ChartTooltip, { pointFromMouse, pointFromFocus } from './chart-tooltip';
 
 As descrições de rodapé do Call Center e os blocos de texto explicativos do Comparativo Anual e do gráfico diário de tempos foram retirados da **interface** a pedido do usuário. O objetivo é reduzir ruído visual. Permanecem intactos os títulos, seletores, legendas, tooltips, estados de erro e ausência de dados, nomes de métricas e suas regras matemáticas.
 
-Os esclarecimentos funcionais continuam valendo: ausência de histórico não equivale a volume zero; a linha de média anual só aparece quando existem registros nos dois anos; TET legado não é TME de fila. Essas regras são preservadas pelo código, pelos rótulos das métricas e pela documentação, sem repetir os parágrafos descartados.
+Os esclarecimentos funcionais continuam valendo: ausência de histórico não equivale a volume zero; a média entre os anos só é calculada quando existem registros nos dois anos; com um único ano, a linha horizontal representa apenas aquele ano, identificada como referência; TET legado não é TME de fila. Essas regras são preservadas pelo código, pelos rótulos das métricas e pela documentação, sem repetir os parágrafos descartados.
+
+## Revisão visual de 23/11/2026
+
+- A evolução das chamadas recebidas usa cantos discretos de 4 px nas colunas empilhadas.
+- O posicionamento do tooltip é calculado com a altura e a largura medidas do elemento, não por uma estimativa baseada no número de itens; respeita a janela e o conteúdo quebrado em linhas.
+- Selecionar uma barra mantém seu detalhe textual abaixo do gráfico, mas não prende o tooltip quando o cursor sai da barra.
+- Comparativo anual com 2 anos: linha tracejada representa a média aritmética do indicador selecionado. Com 1 ano: linha tracejada com estilo diferente e legenda 'Referência [ano]', correspondente apenas ao ano com dados; a média entre anos continua indisponível. Sem ambos os anos, nenhuma linha.

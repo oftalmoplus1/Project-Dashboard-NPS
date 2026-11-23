@@ -6,7 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const userId = '00000000-0000-4000-8000-000000000001';
 const topics = [
  { id: '00000000-0000-4000-8000-000000000010', nome: 'Relatórios', slug: 'relatorios', posicao: 0, quantidade_dashboards: 2 },
- { id: '00000000-0000-4000-8000-000000000011', nome: 'Financeiro', slug: 'financeiro', posicao: 1, quantidade_dashboards: 1 }
+ { id: '00000000-0000-4000-8000-000000000011', nome: 'Financeiro', slug: 'financeiro', posicao: 1, quantidade_dashboards: 2 }
 ];
 const registryRows = [
  { codigo: 'visao-geral-chamadas', nome: 'Visão geral de Chamadas', estado: 'publicado', posicao: 0 },
@@ -39,7 +39,7 @@ const upstream = createServer(async (req,res) => {
  }
  if (url.pathname.endsWith('/dashboard_catalogo_listar_dashboards_topico')) {
   assert.ok(['relatorios','financeiro'].includes(args.p_slug));
-  return send(200,args.p_slug==='relatorios' ? registryRows.filter(row => !removed || row.codigo!=='tma-tme-diario') : [registryRows[0]]);
+  return send(200,args.p_slug==='relatorios' ? registryRows.filter(row => !removed || row.codigo!=='tma-tme-diario') : registryRows);
  }
  if (url.pathname.endsWith('/dashboard_catalogo_vincular_existente')) {
   associations++;
@@ -254,7 +254,7 @@ try {
   const relatorios=await request('/api/catalogo/topicos/relatorios/dashboards','admin-catalog-session');
   assert.equal((await relatorios.json()).rows.some(row=>row.codigo==='tma-tme-diario'),false);
   const financeiro=await request('/api/catalogo/topicos/financeiro/dashboards','admin-catalog-session');
-  assert.equal((await financeiro.json()).rows.some(row=>row.codigo==='visao-geral-chamadas'),true);
+  assert.equal((await financeiro.json()).rows.some(row=>row.codigo==='tma-tme-diario'),true);
   const inventory=await request('/api/catalogo/dashboards','admin-catalog-session');
   assert.equal((await inventory.json()).rows.some(row=>row.codigo==='tma-tme-diario'),true);
  });

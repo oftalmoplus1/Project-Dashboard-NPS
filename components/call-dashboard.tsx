@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import CallPeriodCharts from './call-period-charts';
 import HourlyLineChart from './hourly-line-chart';
+import ChartTooltip, { pointFromMouse, pointFromFocus, type TooltipPoint } from './chart-tooltip';
 import CallCenterSummary from './call-center-summary';
 import AnnualCallComparison from './annual-call-comparison';
 import CallExtensionsChart from './call-extensions-chart';
@@ -39,6 +40,8 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const [refreshing, setRefreshing] = useState(false);
   const [requestNumber, setRequestNumber] = useState(0);
   const [selectedBucket, setSelectedBucket] = useState<string | null>(null);
+  const [hoveredBucket, setHoveredBucket] = useState<string | null>(null);
+  const [tooltipPoint, setTooltipPoint] = useState<TooltipPoint | null>(null);
   useEffect(() => {
     setNow(new Date());
     const timer = window.setInterval(() => {
@@ -59,7 +62,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     if (!rangeKey) return;
     const controller = new AbortController();
     let active = true;
-    setRefreshing(true); setError(''); setSelectedBucket(null);
+    setRefreshing(true); setError(''); setSelectedBucket(null); setHoveredBucket(null);
     const load = async () => {
       try {
         const response = await fetch(`/api/chamadas?start=${rangeStart}&end=${rangeEnd}`, { cache: 'no-store', signal: controller.signal });
@@ -112,6 +115,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     try { return buildAggregateDashboard(snapshot.rows, range); } catch { return null; }
   }, [range, rangeKey, snapshot]);
   const activeBucket = data?.buckets.find(bucket => bucket.key === selectedBucket);
+  const hoveredItem = data?.buckets.find(bucket => bucket.key === (hoveredBucket ?? selectedBucket));
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
   const times = extra?.key === rangeKey && extra.status === 'ready' ? extra : null;
   const timeStatus = extra?.key !== rangeKey ? 'loading' : extra.status;
@@ -150,7 +154,12 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
             <div className={styles.plot}>
               {data.buckets.map(bucket => <button key={bucket.key} type="button" className={styles.bar} aria-pressed={selectedBucket === bucket.key}
                 aria-label={`${bucket.label}: ${bucket.total} recebidas, ${bucket.answered} atendidas, ${bucket.abandoned} abandonadas, ${bucket.unanswered} sem atendimento, ${bucket.other} outras`}
-                onClick={() => setSelectedBucket(selectedBucket === bucket.key ? null : bucket.key)}>
+                onMouseEnter={event => { setHoveredBucket(bucket.key); setTooltipPoint(pointFromMouse(event)); }}
+                onMouseMove={event => setTooltipPoint(pointFromMouse(event))}
+                onMouseLeave={() => setHoveredBucket(null)}
+                onFocus={event => { setHoveredBucket(bucket.key); setTooltipPoint(pointFromFocus(event)); }}
+                onBlur={() => setHoveredBucket(null)}
+                onClick={event => { setSelectedBucket(selectedBucket === bucket.key ? null : bucket.key); setTooltipPoint(pointFromMouse(event)); }}>
                 <span className={styles.barTotal}>{number(bucket.total)}</span>
                 <span className={styles.barSegments} style={{ height: bucket.total / max * 180 }}>
                   {categories.map(category => <span key={category.key} style={{ width: '100%', height: `${bucket.total ? bucket[category.key] / bucket.total * 100 : 0}%`, background: category.color }} />)}
@@ -159,6 +168,15 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
               </button>)}
             </div>
           </div>}
+          <ChartTooltip open={Boolean(hoveredItem)} point={tooltipPoint}
+            title={hoveredItem?.label ?? ''}
+            values={hoveredItem ? [
+              { label: 'Recebidas', value: number(hoveredItem.total), color: '#2d74ca' },
+              { label: 'Atendidas', value: number(hoveredItem.answered), color: '#12b981' },
+              { label: 'Sem atendimento', value: number(hoveredItem.unanswered), color: '#f5b83d' },
+              { label: 'Abandonadas', value: number(hoveredItem.abandoned), color: '#f05a73' },
+              { label: 'Outras', value: number(hoveredItem.other), color: '#7d8590' },
+            ] : []}/>
           {activeBucket && <p role="status" className={styles.hint}>{activeBucket.label}: {number(activeBucket.total)} recebidas; {number(activeBucket.answered)} atendidas; {number(activeBucket.abandoned)} abandonadas; {number(activeBucket.unanswered)} sem atendimento; {number(activeBucket.other)} outras. <button type="button" className="outline-button" onClick={() => setSelectedBucket(null)}>Fechar</button></p>}
         </section>}
       </div>}

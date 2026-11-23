@@ -168,11 +168,11 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
       title={hovered && highlighted ? labels[highlighted.key] + ' · ' + hovered.year : ''}
       values={hovered && highlighted ? [
         { label: 'Chamadas', value: format(hovered.year === year ? highlighted.current : highlighted.previous), color: hovered.year === year ? currentColor : previousColor },
-        { label: availableYears === 2 ? 'Média dos 2 anos' : 'Referência (1 ano)', value: hoveredMean === null ? '—' : format(hoveredMean) },
-        { label: 'Variação', value: hasCurrent && hasPrevious
+        { label: availableYears === 2 ? 'Média dos 2 anos' : 'Referência', value: hoveredMean === null ? '—' : format(hoveredMean) + (availableYears === 2 ? '' : ' (apenas 1 ano com dados)') },
+        { label: hasCurrent && hasPrevious ? 'Variação' : 'Variação indisponível', value: hasCurrent && hasPrevious
           ? highlighted.variation === null ? 'Indefinida (base zero)' :
             (highlighted.variation > 0 ? '+' : '') + format(highlighted.variation) + '%'
-          : 'Indisponível (histórico ausente)' },
+          : 'falta histórico anual' },
       ] : []}/>
     <p className={styles.annualTooltip} role="status">
       {highlighted && hovered ?

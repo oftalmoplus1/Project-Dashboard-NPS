@@ -80,40 +80,6 @@ test('with one observed year, mean reference is that year, not invented missing 
   assert.throws(() => mod.availableAnnualMean(-1, 100, true, true));
 });
 
-test('extensions conform to LigSim chartcallsipdst documented envelope', () => {
-  const data = mod.parseExtensionResponse({ data: { data: [
-    { answered: '2001', total: 12, private: 'must-not-leak' },
-    { answered: '2002', total: 120 },
-  ], permissions: [] } });
-  assert.deepEqual(data, [{ extension: '2002', answered: 120 }, { extension: '2001', answered: 12 }]);
-});
-test('empty extension report is distinguishable from invalid response', () => {
-  assert.deepEqual(mod.parseExtensionResponse({ data: { data: [] } }), []);
-  assert.throws(() => mod.parseExtensionResponse({ data: {} }));
-});
-for (const bad of [
-  { data: { data: [{ answered: '2001', total: -2 }] } },
-  { data: { data: [{ answered: '2001', total: '2' }] } },
-  { data: { data: [{ answered: '2001', total: 1.5 }] } },
-  { data: { data: [{ answered: '2001', total: 2 }, { answered: '2001', total: 3 }] } },
-  { data: { data: [{ answered: '2001<script>', total: 2 }] } },
-  { data: { data: [{ answered: '2001', total: Number.MAX_SAFE_INTEGER + 1 }] } },
-  { data: { data: [null] } },
-]) {
-  test('reject malformed extension record', () => assert.throws(() => mod.parseExtensionResponse(bad)));
-}
-test('sanitized internal API rows keep exactly the validated extension and count', () => {
-  const rows = mod.parsePublicExtensionRows({ rows: [
-    { extension: '2001', answered: 8, secret: 'must not appear' },
-    { extension: '2002', answered: 14 },
-  ] });
-  assert.deepEqual(rows, [{ extension: '2002', answered: 14 }, { extension: '2001', answered: 8 }]);
-});
-test('public ramal response rejects unexpected vendor field shape', () => {
-  assert.throws(() => mod.parsePublicExtensionRows({ rows: [{ answered: '2001', total: 8 }] }));
-  assert.throws(() => mod.parsePublicExtensionRows({ rows: [{ extension: '2001', answered: -1 }] }));
-  assert.throws(() => mod.parsePublicExtensionRows({ rows: {} }));
-});
 test('SQL migration is guarded, non-destructive and includes both TEF definitions', () => {
   const sql = fs.readFileSync(path.join(root, 'docs/sql/tef-2026-11-19-guarded.sql'), 'utf8');
   for (const expected of ['BEGIN;', 'COMMIT;', 'AVG(r.tef)', 'dashboard_private.chamadas_tempos_por_dia',

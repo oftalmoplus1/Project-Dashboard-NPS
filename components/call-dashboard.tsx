@@ -6,11 +6,11 @@ import CallPeriodCharts from './call-period-charts';
 import HourlyLineChart from './hourly-line-chart';
 import CallCenterSummary from './call-center-summary';
 import AnnualCallComparison from './annual-call-comparison';
-import CallExtensionsChart from './call-extensions-chart';
 import { CALL_CENTER_TABS, type CallCenterTab } from '@/lib/call-center-design';
 import { resolvePeriod, type Period } from '@/lib/call-dashboard';
 import { buildAggregateDashboard, type RpcRow } from '@/lib/call-dashboard-aggregates';
 import { localToday, parseAggregateRows, sumCounts } from '@/lib/call-chart-data';
+import { parseQueueApiResponse, type QueueSnapshot, type QueueSummary } from '@/lib/ligsim-queue-snapshot';
 import styles from './call-center.module.css';
 
 const periods: { key: Period; label: string }[] = [
@@ -35,6 +35,9 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const [now, setNow] = useState<Date | null>(null);
   const [snapshot, setSnapshot] = useState<{ key: string; rows: RpcRow[]; loadedAt: Date } | null>(null);
   const [extra, setExtra] = useState<Extra | null>(null);
+  const [queues, setQueues] = useState<{ key: string; rows: QueueSnapshot[]; summary: QueueSummary; loadedAt: Date } | null>(null);
+  const [queueError, setQueueError] = useState('');
+  const [queueLoading, setQueueLoading] = useState(false);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [requestNumber, setRequestNumber] = useState(0);
@@ -55,8 +58,39 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const rangeStart = range?.start ?? '';
   const rangeEnd = range?.end ?? '';
   const rangeKey = range ? `${rangeStart}:${rangeEnd}` : '';
+  const todayKey = now ? localToday(now) : '';
+  const queueMode = tab === 'overview' && period === 'today' && !!todayKey && rangeStart === todayKey && rangeEnd === todayKey;
   useEffect(() => {
-    if (!rangeKey) return;
+    if (!queueMode) return;
+    const controller = new AbortController();
+    let active = true;
+    setQueueLoading(true);
+    setQueueError('');
+    const load = async () => {
+      try {
+        const response = await fetch('/api/chamadas/filas', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            if (active) setQueues(null);
+            throw new Error('Sessão expirada ou acesso não autorizado às filas.');
+          }
+          throw new Error('A tabela listar_filas está indisponível ou sem permissão de leitura.');
+        }
+        const parsed = parseQueueApiResponse(await response.json());
+        if (active) setQueues({ key: todayKey, rows: parsed.rows, summary: parsed.summary, loadedAt: new Date(parsed.consultedAt) });
+      } catch (cause) {
+        if (active && !controller.signal.aborted) {
+          setQueueError(cause instanceof Error ? cause.message : 'Falha ao atualizar filas.');
+        }
+      } finally {
+        if (active) setQueueLoading(false);
+      }
+    };
+    void load();
+    return () => { active = false; controller.abort(); };
+  }, [queueMode, todayKey, requestNumber]);
+  useEffect(() => {
+    if (!rangeKey || queueMode) return;
     const controller = new AbortController();
     let active = true;
     setRefreshing(true); setError(''); setSelectedBucket(null);
@@ -79,7 +113,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     };
     void load();
     return () => { active = false; controller.abort(); };
-  }, [rangeStart, rangeEnd, rangeKey, requestNumber]);
+  }, [rangeStart, rangeEnd, rangeKey, queueMode, requestNumber]);
   useEffect(() => {
     if (!rangeKey) return;
     const controller = new AbortController();
@@ -105,25 +139,27 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     return () => { active = false; controller.abort(); };
   }, [rangeStart, rangeEnd, rangeKey, requestNumber]);
   const refresh = useCallback(() => {
-    if (!refreshing) { setNow(new Date()); setRequestNumber(value => value + 1); }
-  }, [refreshing]);
+    if (!refreshing && !queueLoading) { setNow(new Date()); setRequestNumber(value => value + 1); }
+  }, [refreshing, queueLoading]);
   const data = useMemo(() => {
     if (!range || snapshot?.key !== rangeKey) return null;
     try { return buildAggregateDashboard(snapshot.rows, range); } catch { return null; }
   }, [range, rangeKey, snapshot]);
+  const queueData = queueMode && queues?.key === todayKey ? queues : null;
+  const shownSummary = queueMode ? queueData?.summary ?? null : data?.summary ?? null;
   const activeBucket = data?.buckets.find(bucket => bucket.key === selectedBucket);
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
   const times = extra?.key === rangeKey && extra.status === 'ready' ? extra : null;
   const timeStatus = extra?.key !== rangeKey ? 'loading' : extra.status;
-  const updated = snapshot?.key === rangeKey ? new Intl.DateTimeFormat('pt-BR', {
+  const updatedSnapshot = queueMode ? queueData?.loadedAt : snapshot?.key === rangeKey ? snapshot.loadedAt : null;
+  const updated = updatedSnapshot ? new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'medium',
-  }).format(snapshot.loadedAt) : '—';
+  }).format(updatedSnapshot) : '—';
   const showPeriod = tab === 'overview' || tab === 'hour';
-  const pending = false;
   return <div className={styles.workspace}>
     <div className={styles.header}>
       <div><h2>Chamadas</h2><p>Visão geral e análises do atendimento.</p></div>
-      <button type="button" className="outline-button" onClick={refresh} disabled={refreshing || pending}>
+      <button type="button" className="outline-button" onClick={refresh} disabled={refreshing || queueLoading}>
         <RefreshCw size={16} aria-hidden="true" /> Atualizar
       </button>
     </div>
@@ -135,15 +171,38 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
         <label>Data final <input type="date" value={end} onChange={event => setEnd(event.target.value)} /></label>
       </div>}
       {resolved?.error && <p className={styles.alert} role="alert">{resolved.error}</p>}
-      {error && <p className={styles.alert} role="alert">{error} {data ? 'Exibindo a última consulta válida do mesmo período.' : ''}</p>}
+      {!queueMode && error && <p className={styles.alert} role="alert">{error} {data ? 'Exibindo a última consulta válida do mesmo período.' : ''}</p>}
+      {queueMode && queueError && <p className={styles.alert} role="alert">{queueError} {queueData ? 'Exibindo a última consulta válida das filas de hoje.' : 'Nenhum número foi estimado.'}</p>}
     </section>}
     {CALL_CENTER_TABS.map(item => <section key={item.id} className={styles.panel}
       aria-label={item.label} hidden={tab !== item.id}>
       {tab === item.id && item.id === 'overview' && <div className={styles.stack}>
-        <CallCenterSummary summary={data?.summary ?? null} loading={!data && !error && !resolved?.error}
+        <CallCenterSummary summary={shownSummary}
+          sourceMode={queueMode ? 'snapshot' : 'history'}
+          loading={!shownSummary && !(queueMode ? queueError : error) && !resolved?.error}
           partial={!!now && rangeEnd === localToday(now)}
-          times={data && times ? { tma: times.tma, tme: times.wait, tefVerified: times.semantics === 'tef' } : null} timeStatus={data ? timeStatus : (error || resolved?.error) ? 'unavailable' : 'loading'} />
-        {data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">
+          times={shownSummary && times ? { tma: times.tma, tme: times.wait, tefVerified: times.semantics === 'tef' } : null}
+          timeStatus={shownSummary ? timeStatus : ((queueMode ? queueError : error) || resolved?.error) ? 'unavailable' : 'loading'} />
+        {queueMode && queueData && <section className={`panel ${styles.chart}`} aria-label="Estado atual das filas">
+          <div className="panel-head"><div><h2>Filas — último estado disponível</h2>
+            <p>Dados atuais de listar_filas. A tabela não guarda a evolução diária ou horária.</p></div></div>
+          <div className={styles.plotScroll}>
+            <table style={{ width: '100%', minWidth: 530, borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead><tr>
+                {['Fila', 'Recebidas', 'Atendidas', 'Abandonadas', 'Em espera'].map(col =>
+                  <th key={col} scope="col" style={{ textAlign: col === 'Fila' ? 'left' : 'right', padding: '10px 8px', borderBottom: '1px solid var(--border)' }}>{col}</th>)}
+              </tr></thead>
+              <tbody>{queueData.rows.map(queue => <tr key={queue.id}>
+                <th scope="row" style={{ textAlign: 'left', padding: '10px 8px', borderBottom: '1px solid var(--border)' }}>{queue.name}</th>
+                {[queue.received, queue.answered, queue.abandoned, queue.waiting].map((value, index) =>
+                  <td key={index} style={{ textAlign: 'right', padding: '10px 8px', borderBottom: '1px solid var(--border)', fontVariantNumeric: 'tabular-nums' }}>{number(value)}</td>)}
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <p className={styles.hint}>Contadores instantâneos fornecidos pela LigSim e atualizados pelo n8n. A hora da consulta não comprova quando ocorreu a última coleta. TMA/TME seguem o relatório de chamadas.</p>
+        </section>}
+        
+        {!queueMode && data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">
           <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>{rangeStart === rangeEnd ? 'Dia completo, de 0h a 24h, em intervalos de duas horas.' : data.range.granularity === 'month' ? 'Totais por mês no período.' : 'Totais por dia no período.'}</p></div></div>
           <div className={styles.legend}>{categories.map(category => <span key={category.key}><i aria-hidden="true" style={{ background: category.color }} />{category.label}</span>)}</div>
           {data.summary.total === 0 ? <p className={styles.hint}>Sem registros disponíveis na base para este período.</p> : <div className={styles.plotScroll}>
@@ -169,11 +228,12 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
       {tab === item.id && item.id === 'annual' && <AnnualCallComparison year={annualYear}
         onYearChange={setAnnualYear} currentYear={now ? Number(localToday(now).slice(0,4)) : annualYear}
         refreshKey={requestNumber} />}
-      {tab === item.id && item.id === 'extension' && <CallExtensionsChart refreshKey={requestNumber} />}
     </section>)}
     <footer className={styles.metadata}>
-      {showPeriod && <div>Consulta do resumo: {updated} · Horário de Brasília.</div>}
-      <span>A consulta da tela não comprova a sincronização da origem. Ausência de registros não comprova volume zero.</span>
+      {showPeriod && <div>{queueMode ? 'Consulta das filas' : 'Consulta do resumo'}: {updated} · Horário de Brasília.</div>}
+      <span>{queueMode ?
+        'Fonte listar_filas: estado mais recente disponível, não histórico fechado do dia. Atualização depende do n8n; não confundir contadores por fila com registros de chamadas.' :
+        'A consulta da tela não comprova a sincronização da origem. Ausência de registros não comprova volume zero.'}</span>
     </footer>
   </div>;
 }

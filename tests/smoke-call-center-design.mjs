@@ -90,6 +90,10 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Call Center', exact: true }).count(), 1);
     assert.equal(await page.getByRole('link', { name: 'Call Center', exact: true }).getAttribute('href'), '/meus-dashboards/relatorios');
   });
+  await check('requested informational footer descriptions are absent', async () => {
+    assert.equal(await page.getByText(/Consulta do resumo:/).count(), 0);
+    assert.equal(await page.getByText(/A consulta da tela não comprova a sincronização da origem/).count(), 0);
+  });
   await check('single grouped card with received answered and abandoned counts', async () => {
     assert.deepEqual(await totals.locator('dd').allTextContents(), ['120', '80', '10']);
   });
@@ -187,7 +191,11 @@ try {
     await page.getByRole('heading', { name: 'Comparativo anual de chamadas', exact: true }).waitFor();
     const chart = page.getByTestId('annual-vertical-chart');
     await chart.waitFor();
-    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Colunas verticais agrupadas/);
+    assert.match(await chart.getAttribute('aria-label'), /Gráfico de colunas verticais agrupadas/);
+    assert.equal(await page.getByText(/Colunas verticais agrupadas: recebidas, atendidas e abandonadas por ano/).count(), 0);
+    assert.equal(await page.getByText(/Comparação .* x .* Períodos equivalentes/).count(), 0);
+    assert.equal(await page.getByText(/Os números vêm dos registros disponíveis no Supabase/).count(), 0);
+    assert.equal(await page.getByText(/Linha horizontal tracejada: média dos dois anos/).count(), 0);
     for (const metric of ['total', 'atendidas', 'abandonadas']) {
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + year).count(), 1);
       assert.equal(await page.getByTestId('annual-column-' + metric + '-' + (year - 1)).count(), 1);
@@ -232,13 +240,14 @@ try {
     // Reload only the annual comparison; keep overview snapshot independent.
     await page.getByLabel('Ano da comparação anual').selectOption(String(year - 1));
     await page.getByLabel('Ano da comparação anual').selectOption(String(year));
-    await page.getByText('Um dos anos não contém registros.', { exact: false }).waitFor();
+    await page.getByTestId('annual-missing-total-' + (year - 1)).waitFor({ state: 'attached' });
+    assert.equal(await page.getByText(/Um dos anos não contém registros/).count(), 0);
     assert.equal(await page.getByTestId('annual-column-total-' + (year - 1)).count(), 0);
     assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);
     assert.equal(await page.getByTestId('annual-column-total-' + year).count(), 1);
     const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
     assert.equal(await singleYearLine.count(), 0, 'mean must not be shown with only one year observed');
-    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Média entre anos indisponível/);
+    assert.equal(await page.getByText(/Média entre anos indisponível: é necessário haver registros/).count(), 0);
     assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
     await totalColumn.hover();
     await floating.waitFor();
@@ -256,6 +265,11 @@ try {
     await page.screenshot({ path: 'artifacts/call-center-design/mobile-annual-vertical.png', fullPage: true });
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.unroute('**/api/chamadas?*');
+  });
+  await check('daily times chart omits the requested explanatory paragraph', async () => {
+    await nav('TMA e TME diário').click();
+    assert.equal(await page.getByText(/Valores em segundos no eixo vertical; detalhes em mm:ss/).count(), 0);
+    assert.equal(await page.getByText(/TET legado não é TME de fila\. Dias sem registros/).count(), 0);
   });
   await check('extension chart displays only validated source results after explicit filter', async () => {
     await page.route('**/api/chamadas/ramais?*', async route => route.fulfill({

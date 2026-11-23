@@ -111,7 +111,9 @@ try {
   await page.screenshot({ path: 'artifacts/call-center-design/desktop-overview.png', fullPage: true });
   await check('call evolution columns use rounded visible corners', async () => {
     const columns = page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).locator('[class*="barSegments"]');
-    await columns.first().waitFor();
+    await columns.first().waitFor({ state: 'attached' });
+    const visible = await columns.evaluateAll(elements => elements.some(el => el.getBoundingClientRect().height > 0));
+    assert.ok(visible, 'at least one column should contain observed calls');
     const style = await columns.first().evaluate(element => {
       const computed = getComputedStyle(element);
       return { radius: parseFloat(computed.borderTopLeftRadius), clipping: computed.overflow };

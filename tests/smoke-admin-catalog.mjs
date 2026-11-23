@@ -14,6 +14,7 @@ const registryRows = [
 ];
 let mode = 'normal';
 let writes = 0;
+let associations = 0;
 let passed = 0;
 
 const upstream = createServer(async (req,res) => {
@@ -38,6 +39,11 @@ const upstream = createServer(async (req,res) => {
   assert.ok(['relatorios','financeiro'].includes(args.p_slug));
   return send(200,args.p_slug==='relatorios' ? registryRows : [registryRows[0]]);
  }
+ if (url.pathname.endsWith('/dashboard_catalogo_vincular_existente')) {
+  associations++;
+  assert.deepEqual(args,{p_topico_slug:'relatorios',p_codigo:'chamadas-por-mes'});
+  return send(200,'00000000-0000-4000-8000-000000000020');
+ }
  if (url.pathname.endsWith('/dashboard_catalogo_atualizar_topico')) {
   writes++;
   if (mode === 'rpc-missing') return send(404,{code:'PGRST202',message:'RPC missing'});
@@ -60,9 +66,11 @@ const upstream = createServer(async (req,res) => {
 await new Promise(resolve => upstream.listen(0,'127.0.0.1',resolve));
 const port = 3216;
 const base = `http://127.0.0.1:${port}`;
+// Simulate Coolify: the browser uses a public origin, Next sees an internal URL.
+const publicOrigin = 'http://dashboard-public.example';
 const app = spawn(process.execPath,['node_modules/next/dist/bin/next','start','-H','127.0.0.1','-p',String(port)], {
  env:{ ...process.env,NODE_ENV:'production',NEXT_TELEMETRY_DISABLED:'1',
-  SUPABASE_URL:`http://127.0.0.1:${upstream.address().port}`,SUPABASE_PUBLISHABLE_KEY:'admin-test-key',APP_ORIGIN:base },
+  SUPABASE_URL:`http://127.0.0.1:${upstream.address().port}`,SUPABASE_PUBLISHABLE_KEY:'admin-test-key',APP_ORIGIN:publicOrigin },
  stdio:['ignore','pipe','pipe']
 });
 let logs = '';
@@ -105,6 +113,49 @@ try {
    const response=await request('/api/catalogo/dashboards',token);
    assert.equal(response.status,token?403:401);
   }
+ });
+ await check('public APP_ORIGIN can associate a dashboard behind reverse proxy',async()=>{
+  const response=await request('/api/catalogo/topicos/relatorios/dashboards',
+   'admin-catalog-session','POST',{codigo:'chamadas-por-mes'},
+   {Origin:publicOrigin,'Sec-Fetch-Site':'same-origin'});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).id,'00000000-0000-4000-8000-000000000020');
+  assert.equal(associations,1);
+ });
+ await check('malicious Origin and forged forwarded host cannot associate',async()=>{
+  const before=associations;
+  for(const headers of [
+   {Origin:'https://evil.example','Sec-Fetch-Site':'same-origin'},
+   {Origin:base,'Sec-Fetch-Site':'same-origin'},
+   {Origin:'https://evil.example','X-Forwarded-Host':'evil.example','X-Forwarded-Proto':'https'}
+  ]){
+   const response=await request('/api/catalogo/topicos/relatorios/dashboards',
+    'admin-catalog-session','POST',{codigo:'chamadas-por-mes'},headers);
+   assert.equal(response.status,403);
+   assert.equal((await response.json()).error,'Origem inválida.');
+  }
+  assert.equal(associations,before);
+ });
+ await check('Fetch Metadata cross-site is denied even with allowed Origin',async()=>{
+  const before=associations;
+  const response=await request('/api/catalogo/topicos/relatorios/dashboards',
+   'admin-catalog-session','POST',{codigo:'chamadas-por-mes'},
+   {Origin:publicOrigin,'Sec-Fetch-Site':'cross-site'});
+  assert.equal(response.status,403);
+  assert.equal(associations,before);
+ });
+ await check('topic CRUD accepts configured public Origin and rejects external Origin',async()=>{
+  const route='/api/catalogo/topicos/relatorios';
+  const valid=await request(route,'admin-catalog-session','PATCH',{nome:'Call Center'},{Origin:publicOrigin});
+  assert.equal(valid.status,200);
+  assert.equal((await valid.json()).id,topics[0].id);
+  const before=writes;
+  for(const method of ['PATCH','DELETE']){
+   const payload=method==='PATCH'?{nome:'Call Center'}:{confirmar_slug:'relatorios'};
+   const invalid=await request(route,'admin-catalog-session',method,payload,{Origin:'https://evil.example'});
+   assert.equal(invalid.status,403);
+  }
+  assert.equal(writes,before);
  });
  await check('topic CRUD requires an admin on a protected route',async()=>{
   const before=writes;

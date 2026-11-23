@@ -117,13 +117,13 @@ export default function CallPeriodCharts({ rangeStart, rangeEnd, year, onYearCha
                   style={{ transition: 'opacity 180ms ease-out' }}
                   opacity={highlightedIndex === null || highlightedIndex === index ? 1 : .72}/>;
               }) : <text x={monthX(index)} y={plotBottom - 10} textAnchor="middle" fill="var(--muted)"
-                fontSize={13}>{row.status === 'future' ? '—' : '·'}</text>}
+                fontSize={10}>{row.status === 'future' ? 'Futuro' : 'Sem registros'}</text>}
               <text x={monthX(index)} y={plotBottom + 22} textAnchor="middle" fontSize={13}
                 fill="var(--text)">{months[index]}{row.status === 'partial' ? '*' : ''}</text>
               {available && <rect x={monthX(index) - slot / 2 + 2} y={42}
                 width={slot - 4} height={plotBottom - 40} fill="transparent" role="button"
                 tabIndex={0} aria-pressed={selectedMonth === index}
-                aria-label={`${months[index]}: ${row.total} recebidas, ${row.atendidas} atendidas, ${row.abandonadas} abandonadas`}
+                aria-label={`${months[index]}: ${row.total} recebidas, ${row.atendidas} atendidas, ${row.abandonadas} abandonadas${row.status === 'partial' ? ', mês parcial' : ''}`}
                 style={{ cursor: 'crosshair' }}
                 onMouseEnter={event => { setHoveredMonth(index); setTooltipPoint(pointFromMouse(event)); }}
                 onMouseMove={event => setTooltipPoint(pointFromMouse(event))}

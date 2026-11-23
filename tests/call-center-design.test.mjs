@@ -28,21 +28,21 @@ test('custom topic names are preserved', () => {
   assert.equal(lib.callCenterTopicLabel({ slug: 'outro', nome: 'Relatórios' }), 'Relatórios');
 });
 test('topic rename handles legacy accents and surrounding spaces', () => assert.equal(lib.callCenterTopicLabel({ slug: 'relatorios', nome: ' RELATORIOS ' }), 'Call Center'));
-test('five unique tabs, annual and extension enabled with explicit errors', () => {
-  assert.equal(new Set(lib.CALL_CENTER_TABS.map(tab => tab.id)).size, 5);
+test('four unique tabs without the unused extensions view', () => {
+  assert.equal(new Set(lib.CALL_CENTER_TABS.map(tab => tab.id)).size, 4);
   assert.deepEqual(lib.CALL_CENTER_TABS.filter(tab => tab.pending).map(tab => tab.id), []);
 });
 test('keyboard arrows wrap without activating network queries', () => {
-  assert.equal(lib.nextCallTabIndex(4, 'ArrowRight'), 0);
-  assert.equal(lib.nextCallTabIndex(0, 'ArrowLeft'), 4);
+  assert.equal(lib.nextCallTabIndex(3, 'ArrowRight'), 0);
+  assert.equal(lib.nextCallTabIndex(0, 'ArrowLeft'), 3);
   assert.equal(lib.nextCallTabIndex(1, 'ArrowRight'), 2);
 });
 test('Home and End navigation', () => {
   assert.equal(lib.nextCallTabIndex(3, 'Home'), 0);
-  assert.equal(lib.nextCallTabIndex(1, 'End'), 4);
+  assert.equal(lib.nextCallTabIndex(1, 'End'), 3);
 });
 test('native keys and invalid indexes are not intercepted', () => {
   for (const key of ['Enter', ' ', 'Tab', 'ArrowDown']) assert.equal(lib.nextCallTabIndex(0, key), null);
   assert.equal(lib.nextCallTabIndex(-1, 'Home'), null);
-  assert.equal(lib.nextCallTabIndex(5, 'End'), null);
+  assert.equal(lib.nextCallTabIndex(4, 'End'), null);
 });

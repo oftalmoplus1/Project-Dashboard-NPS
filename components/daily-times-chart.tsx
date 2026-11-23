@@ -117,7 +117,6 @@ export default function DailyTimesChart(){
     {series.map(s=><span key={s.key} style={{display:'flex',gap:7,alignItems:'center',fontSize:12}}>
      <span style={{height:9,width:9,borderRadius:'50%',background:s.color}}/>{s.label}</span>)}
    </div>
-   <p style={{fontSize:11,opacity:.7,marginTop:12}}>Valores em segundos no eixo vertical; detalhes em mm:ss. TET legado não é TME de fila. Dias sem registros aparecem sem barras. Passe o mouse para ver o tooltip ou selecione pelo teclado.</p>
   </div>}
  </section>;
 }

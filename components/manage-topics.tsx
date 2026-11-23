@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck, ChevronDown, Link2 } from 'lucide-react';
+import { FolderPlus, Folder, LoaderCircle, RefreshCw, ShieldCheck, ChevronDown, Link2, Pencil, Trash2, X, Save } from 'lucide-react';
+import { callCenterTopicLabel } from '@/lib/call-center-design';
 import Link from 'next/link';
 import { existingDashboards, type DashboardItem } from '@/lib/dashboard-registry';
 
@@ -27,6 +28,11 @@ export default function ManageTopics(){
  const [itemsByTopic,setItemsByTopic]=useState<Record<string,DashboardItem[]>>({});
  const [loadingTopic,setLoadingTopic]=useState(false);
  const [linking,setLinking]=useState('');
+ const [editingSlug,setEditingSlug]=useState<string|null>(null);
+ const [editName,setEditName]=useState('');
+ const [deletingSlug,setDeletingSlug]=useState<string|null>(null);
+ const [confirmSlug,setConfirmSlug]=useState('');
+ const [mutating,setMutating]=useState(false);
 
  const load=useCallback(async()=>{
   setLoading(true);
@@ -69,6 +75,7 @@ export default function ManageTopics(){
    setName('');
    setMessage('Tópico criado. Nenhum usuário recebeu acesso automaticamente.');
    await load();
+   window.dispatchEvent(new Event('dashboard-topics-updated'));
   }catch{
    setError('Não foi possível salvar o tópico.');
   }finally{setSaving(false);}
@@ -117,6 +124,47 @@ export default function ManageTopics(){
   }finally{setLinking('');}
  }
 
+ function startEdit(topico:Topico) {
+  setEditingSlug(topico.slug);
+  setEditName(callCenterTopicLabel(topico));
+  setDeletingSlug(null);setConfirmSlug('');setMessage('');setError('');
+ }
+ function startDelete(topico:Topico) {
+  setDeletingSlug(topico.slug);setConfirmSlug('');
+  setEditingSlug(null);setMessage('');setError('');
+ }
+ async function updateTopic(event:FormEvent<HTMLFormElement>,slug:string) {
+  event.preventDefault();
+  if(mutating||!editName.trim())return;
+  setMutating(true);setError('');setMessage('');
+  try {
+   const response=await fetch('/api/catalogo/topicos/'+encodeURIComponent(slug),{
+    method:'PATCH',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({nome:editName.trim()})
+   });
+   const data:{error?:string}=await response.json();
+   if(!response.ok){setError(data.error??'Não foi possível atualizar o tópico.');return;}
+   setEditingSlug(null);setMessage('Tópico atualizado. O endereço e as permissões foram preservados.');
+   await load();window.dispatchEvent(new Event('dashboard-topics-updated'));
+  }catch{setError('Não foi possível atualizar o tópico.');}finally{setMutating(false);}
+ }
+ async function deleteTopic(event:FormEvent<HTMLFormElement>,slug:string) {
+  event.preventDefault();
+  if(mutating||confirmSlug!==slug)return;
+  setMutating(true);setError('');setMessage('');
+  try{
+   const response=await fetch('/api/catalogo/topicos/'+encodeURIComponent(slug),{
+    method:'DELETE',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({confirmar_slug:slug})
+   });
+   const data:{error?:string}=await response.json();
+   if(!response.ok){setError(data.error??'Não foi possível excluir o tópico.');return;}
+   setDeletingSlug(null);setConfirmSlug('');setOpened(null);setItemsByTopic({});
+   setMessage('Tópico excluído; dashboards e dados operacionais foram preservados.');
+   await load();window.dispatchEvent(new Event('dashboard-topics-updated'));
+  }catch{setError('Não foi possível excluir o tópico.');}finally{setMutating(false);}
+ }
+
  return <section className="panel manage-topics" aria-label="Gerenciar tópicos">
   <div className="panel-head">
    <div>
@@ -130,7 +178,7 @@ export default function ManageTopics(){
   <div className="manage-topics-content">
    <div className="notice">
     <ShieldCheck size={17}/>
-    <span>Somente administradores criam tópicos e vinculam dashboards existentes. Cada associação preserva as permissões restritas.</span>
+    <span>Somente administradores podem criar, editar e excluir tópicos. Alterar o nome preserva links e permissões; excluir remove apenas o tópico e seus vínculos.</span>
    </div>
    {error&&<div role="alert" className="topic-message topic-error">{error}
     {!ready&&<p>Se a estrutura ainda não foi instalada, o cadastro permanecerá indisponível até a validação do banco.</p>}
@@ -140,7 +188,7 @@ export default function ManageTopics(){
     <label htmlFor="topic-name">Nome do novo tópico</label>
     <div className="topic-create-row">
      <input id="topic-name" value={name} onChange={e=>setName(e.target.value)}
-      placeholder="Ex.: Relatórios" maxLength={120} required disabled={!ready||saving}/>
+      placeholder="Ex.: Call Center" maxLength={120} required disabled={!ready||saving}/>
      <button type="submit" className="primary-button"
       disabled={!ready||saving||!name.trim()}>
       {saving?<LoaderCircle size={16}/>:<FolderPlus size={16}/>}
@@ -159,10 +207,34 @@ export default function ManageTopics(){
      {topicos.map(t=><div className="topic-list-group" key={t.id}>
       <button type="button" className="topic-list-item topic-toggle" onClick={()=>toggleTopic(t.slug)} aria-expanded={opened===t.slug} aria-controls={`topic-details-${t.slug}`}>
        <Folder size={19}/>
-       <span className="topic-list-info"><strong>{t.nome}</strong><small>{t.quantidade_dashboards} {t.quantidade_dashboards===1?'dashboard associado':'dashboards associados'}</small></span>
+       <span className="topic-list-info"><strong>{callCenterTopicLabel(t)}</strong><small>{t.quantidade_dashboards} {t.quantidade_dashboards===1?'dashboard associado':'dashboards associados'}</small></span>
        <span className="subtle-pill">#{t.posicao+1}</span>
        <ChevronDown size={16} className={opened===t.slug?'topic-chevron expanded':'topic-chevron'}/>
       </button>
+      <div className="topic-action-buttons">
+       <button type="button" className="outline-button" onClick={()=>startEdit(t)} disabled={mutating||saving}><Pencil size={14}/> Editar</button>
+       <button type="button" className="outline-button topic-delete-button" onClick={()=>startDelete(t)} disabled={mutating||saving}><Trash2 size={14}/> Excluir</button>
+      </div>
+      {editingSlug===t.slug&&<form className="topic-inline-form" onSubmit={event=>void updateTopic(event,t.slug)}>
+       <label htmlFor={`edit-topic-${t.slug}`}>Nome do tópico (endereço e permissões não mudam)</label>
+       <div className="topic-create-row">
+        <input id={`edit-topic-${t.slug}`} value={editName} required minLength={1} maxLength={120}
+         onChange={event=>setEditName(event.target.value)} disabled={mutating}/>
+        <button type="submit" className="primary-button" disabled={mutating||!editName.trim()}><Save size={15}/> Salvar</button>
+        <button type="button" className="outline-button" disabled={mutating} onClick={()=>setEditingSlug(null)}><X size={15}/> Cancelar</button>
+       </div>
+      </form>}
+      {deletingSlug===t.slug&&<form className="topic-delete-confirm" onSubmit={event=>void deleteTopic(event,t.slug)}>
+       <strong>Excluir definitivamente o tópico {callCenterTopicLabel(t)}?</strong>
+       <p>Serão desfeitos {t.quantidade_dashboards} vínculos de dashboards e as permissões deste tópico. Os dashboards originais e dados de chamadas serão preservados.</p>
+       <label htmlFor={`delete-topic-${t.slug}`}>Digite <b>{t.slug}</b> para confirmar</label>
+       <div className="topic-create-row">
+        <input id={`delete-topic-${t.slug}`} value={confirmSlug} autoComplete="off"
+         onChange={event=>setConfirmSlug(event.target.value)} disabled={mutating}/>
+        <button type="submit" className="primary-button" disabled={mutating||confirmSlug!==t.slug}><Trash2 size={15}/> Confirmar exclusão</button>
+        <button type="button" className="outline-button" disabled={mutating} onClick={()=>setDeletingSlug(null)}>Cancelar</button>
+       </div>
+      </form>}
       {opened===t.slug&&<div id={`topic-details-${t.slug}`} className="topic-details">
        <div className="topic-details-header">
         <strong>Dashboards deste tópico</strong>

@@ -22,14 +22,17 @@ const upstream = createServer(async (req, res) => {
   if (req.headers.apikey !== 'design-test-key') return send(401, {});
   if (url.pathname === '/auth/v1/user') return req.headers.authorization === 'Bearer design-admin-session'
     ? send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: 'admin' } }) : send(401, {});
-  if (url.pathname === '/rest/v1/listar_filas') {
-    if (req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
+  if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+    if (req.method !== 'POST' || req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
     if (mode === 'error') return send(503, {});
     if (mode === 'denied') return send(403, {});
-    if (url.searchParams.get('select')?.includes('member')) return send(400, {});
-    return send(200, [{ id: 1, name: 'FILA-TESTE', received: 120, answered: 80,
-      abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4
-    }], { 'Content-Range': '0-0/1' });
+    const latest = new Date().toISOString();
+    return send(200, { snapshotKind: 'latest_successful_batch', sourceUpdatedAt: latest,
+      rows: [{ id: 1, name: 'FILA-TESTE', received: 120, answered: 80,
+        abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4,
+        updated_at: latest,
+      }]
+    });
   }
   if (!url.pathname.startsWith('/rest/v1/rpc/dashboard_chamadas_')) return send(404, {});
   if (req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});

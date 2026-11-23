@@ -42,8 +42,8 @@ function axisCeiling(values: number[]): number {
 
 /**
  * Presentation only. The annual totals come from the existing aggregation module.
- * A missing year never becomes a zero. With one year available, the reference
- * is visibly identified as a one-year baseline, not an interannual comparison.
+ * A missing year never becomes a zero. The dashed mean line only appears
+ * when BOTH years have records; one year cannot establish an interannual mean.
  */
 export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPrevious, meanMetric }: Props) {
   const tooltipId = useId();
@@ -55,11 +55,11 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
   const maximum = axisCeiling(actualValues);
   const scaleY = (value: number) => bottom - (value / maximum) * height;
   const chosen = metrics.find(metric => metric.key === meanMetric);
-  const mean = chosen ? availableAnnualMean(chosen.current, chosen.previous, hasCurrent, hasPrevious) : null;
-  const availableYears = Number(hasCurrent) + Number(hasPrevious);
+  const mean = chosen && hasCurrent && hasPrevious
+    ? availableAnnualMean(chosen.current, chosen.previous, true, true) : null;
   const highlighted = hovered ? metrics.find(metric => metric.key === hovered.key) : null;
-  const hoveredMean = highlighted ?
-    availableAnnualMean(highlighted.current, highlighted.previous, hasCurrent, hasPrevious) : null;
+  const hoveredMean = highlighted && hasCurrent && hasPrevious
+    ? availableAnnualMean(highlighted.current, highlighted.previous, true, true) : null;
 
   const showFromMouse = (event: MouseEvent<SVGRectElement>, key: ChartMetric, columnYear: number) => {
     const { x, y } = pointFromMouse(event);
@@ -116,9 +116,7 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
       <span><i style={{ background: currentColor }} aria-hidden="true" />{year}</span>
       {mean !== null && <span className={styles.annualMeanLegend}>
         <i style={{ borderTopColor: meanColor }} aria-hidden="true"/>
-        {availableYears === 2 ?
-          'Média entre 2 anos de ' + labels[meanMetric].toLowerCase() + ': ' + format(mean) :
-          'Referência de ' + labels[meanMetric].toLowerCase() + ' (único ano disponível): ' + format(mean)}
+        {'Média entre 2 anos de ' + labels[meanMetric].toLowerCase() + ': ' + format(mean)}
       </span>}
     </div>
 
@@ -153,7 +151,7 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
             stroke={meanColor} strokeWidth={3} strokeDasharray="9 6"/>
           <text x={right - 6} y={Math.max(top + 12, scaleY(mean) - 10)}
             textAnchor="end" fontSize="12" fontWeight="700" fill={meanColor}>
-            {availableYears === 2 ? 'Média' : 'Referência'}: {format(mean)}
+            Média: {format(mean)}
           </text>
         </g>}
         <text x={(left + right) / 2} y={409} textAnchor="middle" fontSize="12" fill="var(--cc-muted)">
@@ -168,7 +166,7 @@ export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPr
       title={hovered && highlighted ? labels[highlighted.key] + ' · ' + hovered.year : ''}
       values={hovered && highlighted ? [
         { label: 'Chamadas', value: format(hovered.year === year ? highlighted.current : highlighted.previous), color: hovered.year === year ? currentColor : previousColor },
-        { label: availableYears === 2 ? 'Média dos 2 anos' : 'Referência', value: hoveredMean === null ? '—' : format(hoveredMean) + (availableYears === 2 ? '' : ' (apenas 1 ano com dados)') },
+        { label: 'Média entre anos', value: hoveredMean === null ? 'Indisponível' : format(hoveredMean) },
         { label: hasCurrent && hasPrevious ? 'Variação' : 'Variação indisponível', value: hasCurrent && hasPrevious
           ? highlighted.variation === null ? 'Indefinida (base zero)' :
             (highlighted.variation > 0 ? '+' : '') + format(highlighted.variation) + '%'

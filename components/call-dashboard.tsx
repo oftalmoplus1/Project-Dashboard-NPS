@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import CallPeriodCharts from './call-period-charts';
 import HourlyLineChart from './hourly-line-chart';
-import CallCenterTabs from './call-center-tabs';
 import CallCenterSummary from './call-center-summary';
 import AnnualCallComparison from './annual-call-comparison';
 import CallExtensionsChart from './call-extensions-chart';
@@ -28,9 +27,7 @@ const categories = [
 const number = (value: number) => value.toLocaleString('pt-BR');
 type Extra = { key: string; status: 'ready' | 'unavailable'; tma: number | null; wait: number | null; semantics: 'tef' | 'tet_legacy' };
 
-export default function CallDashboard() {
-  const tabId = useId();
-  const [tab, setTab] = useState<CallCenterTab>('overview');
+export default function CallDashboard({ activeTab: tab }: { activeTab: CallCenterTab }) {
   const [period, setPeriod] = useState<Period>('today');
   const [annualYear, setAnnualYear] = useState(Number(localToday(new Date()).slice(0, 4)));
   const [start, setStart] = useState('');
@@ -130,7 +127,6 @@ export default function CallDashboard() {
         <RefreshCw size={16} aria-hidden="true" /> Atualizar
       </button>
     </div>
-    <CallCenterTabs id={tabId} value={tab} onChange={setTab} />
     {showPeriod && <section className={styles.filters} aria-label="Filtros de chamadas">
       <h3>Período de consulta</h3>
       <div className={styles.presets}>{periods.map(item => <button key={item.key} type="button" aria-pressed={period === item.key} onClick={() => setPeriod(item.key)} className={period === item.key ? 'primary-button' : 'outline-button'}>{item.label}</button>)}</div>
@@ -142,8 +138,7 @@ export default function CallDashboard() {
       {error && <p className={styles.alert} role="alert">{error} {data ? 'Exibindo a última consulta válida do mesmo período.' : ''}</p>}
     </section>}
     {CALL_CENTER_TABS.map(item => <section key={item.id} className={styles.panel}
-      id={`${tabId}-panel-${item.id}`} role="tabpanel" aria-labelledby={`${tabId}-tab-${item.id}`}
-      hidden={tab !== item.id} tabIndex={0}>
+      aria-label={item.label} hidden={tab !== item.id}>
       {tab === item.id && item.id === 'overview' && <div className={styles.stack}>
         <CallCenterSummary summary={data?.summary ?? null} loading={!data && !error && !resolved?.error}
           partial={!!now && rangeEnd === localToday(now)}

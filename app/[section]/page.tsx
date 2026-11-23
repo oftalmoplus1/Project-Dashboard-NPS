@@ -2,6 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getAuthorizedUser } from '@/lib/server/auth-session';
 import { isAdministrativeSection, isSection } from '@/lib/navigation';
 import AppShell from '@/components/app-shell';
+import { resolveCallCenterView } from '@/lib/call-center-design';
 
 export default async function SectionPage({
  params, searchParams,
@@ -19,6 +20,6 @@ export default async function SectionPage({
  // Nao liberar dados de chamadas para gerente somente por possuir o perfil manager.
  if(section==='chamadas' && user.role!=='administrador') notFound();
  const {painel}=await searchParams;
- const callView=section==='chamadas' && painel==='tempos-diarios'?'tempos-diarios':'geral';
+ const callView=section==='chamadas' ? resolveCallCenterView(painel) : 'overview';
  return <AppShell section={section} callView={callView} role={user.role}/>;
 }

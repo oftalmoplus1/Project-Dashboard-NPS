@@ -97,3 +97,64 @@ export async function POST(
   return NextResponse.json({error:'Não foi possível associar o dashboard.'},{status:503,headers:noStore});
  }
 }
+
+/**
+ * Remove somente a associacao topico-dashboard. Nunca exclui o dashboard,
+ * seus graficos ou registros operacionais. Requer confirmacao nominal.
+ */
+export async function DELETE(
+ request:Request,{params}:{params:Promise<{slug:string}>}
+){
+ const {slug}=await params;
+ if(!validSlug(slug))return NextResponse.json({error:'Tópico inválido.'},{status:400,headers:noStore});
+ try {
+  if(!allowedMutationOrigin(request))return NextResponse.json({error:'Origem inválida.'},{status:403,headers:noStore});
+ }catch{
+  return NextResponse.json({error:'Origem pública configurada incorretamente.'},{status:503,headers:noStore});
+ }
+ if(!request.headers.get('content-type')?.includes('application/json')){
+  return NextResponse.json({error:'Formato inválido.'},{status:415,headers:noStore});
+ }
+ const token=(await cookies()).get(SESSION_COOKIE)?.value;
+ if(!token)return NextResponse.json({error:'Sessão necessária.'},{status:401,headers:noStore});
+ let body:unknown;
+ try {body=await request.json();}catch{
+  return NextResponse.json({error:'Dados inválidos.'},{status:400,headers:noStore});
+ }
+ if(!body||typeof body!=='object'||Array.isArray(body)){
+  return NextResponse.json({error:'Dados inválidos.'},{status:400,headers:noStore});
+ }
+ const {codigo,confirmar_codigo}=body as Record<string,unknown>;
+ if(!isExistingDashboardCode(codigo)||confirmar_codigo!==codigo){
+  return NextResponse.json({error:'Confirme exatamente o código do dashboard para removê-lo do tópico.'},{status:400,headers:noStore});
+ }
+ try {
+  const user=await verifySupabaseUser(token);
+  if(!user||user.role!=='administrador')return unauthorized();
+  const response=await rpc(token,'dashboard_catalogo_desvincular_dashboard_topico',{
+   p_topico_slug:slug,p_codigo:codigo
+  });
+  if(!response.ok){
+   const data:unknown=await response.json().catch(()=>null);
+   const code=data&&typeof data==='object'&&'code' in data
+    ?(data as {code?:unknown}).code:null;
+   const status=code==='42501'||response.status===403||response.status===401?403
+    :code==='P0002'?404:503;
+   const error=status===404?'Este dashboard não está mais vinculado ao tópico.'
+    :status===403?'Acesso negado à remoção do dashboard.'
+    :'Não foi possível remover o dashboard do tópico. Verifique a função administrativa.';
+   return NextResponse.json({error},{status,headers:noStore});
+  }
+  const outcome:unknown=await response.json();
+  if(!outcome||typeof outcome!=='object'||Array.isArray(outcome)
+    ||(outcome as Record<string,unknown>).topico_slug!==slug
+    ||(outcome as Record<string,unknown>).codigo!==codigo
+    ||(outcome as Record<string,unknown>).dashboard_preservado!==true
+    ||typeof (outcome as Record<string,unknown>).permissoes_contextuais_revogadas!=='number'){
+   return NextResponse.json({error:'Confirmação inesperada do catálogo.'},{status:502,headers:noStore});
+  }
+  return NextResponse.json({result:outcome},{status:200,headers:noStore});
+ }catch{
+  return NextResponse.json({error:'Não foi possível remover o dashboard do tópico.'},{status:503,headers:noStore});
+ }
+}

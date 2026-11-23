@@ -15,6 +15,8 @@ const registryRows = [
 let mode = 'normal';
 let writes = 0;
 let associations = 0;
+let unlinks = 0;
+let removed = false;
 let passed = 0;
 
 const upstream = createServer(async (req,res) => {
@@ -37,12 +39,25 @@ const upstream = createServer(async (req,res) => {
  }
  if (url.pathname.endsWith('/dashboard_catalogo_listar_dashboards_topico')) {
   assert.ok(['relatorios','financeiro'].includes(args.p_slug));
-  return send(200,args.p_slug==='relatorios' ? registryRows : [registryRows[0]]);
+  return send(200,args.p_slug==='relatorios' ? registryRows.filter(row => !removed || row.codigo!=='tma-tme-diario') : [registryRows[0]]);
  }
  if (url.pathname.endsWith('/dashboard_catalogo_vincular_existente')) {
   associations++;
   assert.deepEqual(args,{p_topico_slug:'relatorios',p_codigo:'chamadas-por-mes'});
   return send(200,'00000000-0000-4000-8000-000000000020');
+ }
+ if (url.pathname.endsWith('/dashboard_catalogo_desvincular_dashboard_topico')) {
+  unlinks++;
+  assert.deepEqual(args,{p_topico_slug:'relatorios',p_codigo:'tma-tme-diario'});
+  if(mode==='unlink-missing')return send(404,{code:'P0002'});
+  if(mode==='unlink-rpc-absent')return send(404,{code:'PGRST202'});
+  removed=true;
+  topics[0].quantidade_dashboards=1;
+  return send(200,{
+   topico_id:topics[0].id,
+   topico_slug:'relatorios',codigo:'tma-tme-diario',
+   permissoes_contextuais_revogadas:2,dashboard_preservado:true
+  });
  }
  if (url.pathname.endsWith('/dashboard_catalogo_atualizar_topico')) {
   writes++;
@@ -190,6 +205,58 @@ try {
   const result=(await response.json()).result;
   assert.equal(result.vinculos_removidos,1);
   assert.equal(result.dashboards_originais_preservados,true);
+ });
+ await check('unlink requires matching confirmation before any Supabase RPC',async()=>{
+  const before=unlinks;
+  const route='/api/catalogo/topicos/relatorios/dashboards';
+  for(const [method,payload] of [
+   ['DELETE',{codigo:'tma-tme-diario',confirmar_codigo:'outro'}],
+   ['DELETE',{codigo:'nao-existe',confirmar_codigo:'nao-existe'}]
+  ]){
+   const response=await request(route,'admin-catalog-session',method,payload,{Origin:publicOrigin});
+   assert.equal(response.status,400);
+  }
+  assert.equal(unlinks,before);
+ });
+ await check('unlink requires admin and valid public Origin',async()=>{
+  const before=unlinks;
+  const route='/api/catalogo/topicos/relatorios/dashboards';
+  const payload={codigo:'tma-tme-diario',confirmar_codigo:'tma-tme-diario'};
+  assert.equal((await request(route,undefined,'DELETE',payload,{Origin:publicOrigin})).status,401);
+  assert.equal((await request(route,'manager-catalog-session','DELETE',payload,{Origin:publicOrigin})).status,403);
+  for(const headers of [
+   {Origin:'https://malicious.example', 'X-Forwarded-Host':'dashboard-public.example'},
+   {Origin:publicOrigin,'Sec-Fetch-Site':'cross-site'}
+  ])assert.equal((await request(route,'admin-catalog-session','DELETE',payload,headers)).status,403);
+  assert.equal(unlinks,before);
+ });
+ await check('missing link returns 404; missing RPC returns 503 without claiming success',async()=>{
+  const route='/api/catalogo/topicos/relatorios/dashboards';
+  const data={codigo:'tma-tme-diario',confirmar_codigo:'tma-tme-diario'};
+  mode='unlink-missing';
+  assert.equal((await request(route,'admin-catalog-session','DELETE',data,{Origin:publicOrigin})).status,404);
+  mode='unlink-rpc-absent';
+  assert.equal((await request(route,'admin-catalog-session','DELETE',data,{Origin:publicOrigin})).status,503);
+  mode='normal';
+  assert.equal(removed,false);
+ });
+ await check('unlink removes only one association, preserves dashboard and other topic',async()=>{
+  const route='/api/catalogo/topicos/relatorios/dashboards';
+  const data={codigo:'tma-tme-diario',confirmar_codigo:'tma-tme-diario'};
+  const response=await request(route,'admin-catalog-session','DELETE',data,
+   {Origin:publicOrigin,'Sec-Fetch-Site':'same-origin'});
+  assert.equal(response.status,200);
+  assert.equal(response.headers.get('cache-control'),'private, no-store');
+  assert.deepEqual((await response.json()).result,{
+   topico_id:topics[0].id,topico_slug:'relatorios',codigo:'tma-tme-diario',
+   permissoes_contextuais_revogadas:2,dashboard_preservado:true
+  });
+  const relatorios=await request('/api/catalogo/topicos/relatorios/dashboards','admin-catalog-session');
+  assert.equal((await relatorios.json()).rows.some(row=>row.codigo==='tma-tme-diario'),false);
+  const financeiro=await request('/api/catalogo/topicos/financeiro/dashboards','admin-catalog-session');
+  assert.equal((await financeiro.json()).rows.some(row=>row.codigo==='visao-geral-chamadas'),true);
+  const inventory=await request('/api/catalogo/dashboards','admin-catalog-session');
+  assert.equal((await inventory.json()).rows.some(row=>row.codigo==='tma-tme-diario'),true);
  });
  await check('manager cannot access administration even by direct page URL',async()=>{
   assert.equal((await request('/topicos','manager-catalog-session')).status,404);

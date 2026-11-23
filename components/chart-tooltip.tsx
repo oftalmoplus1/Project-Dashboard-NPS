@@ -32,8 +32,8 @@ export default function ChartTooltip({ open, point, title, values, note, id, tes
 
   if (!mounted) return null;
   const offset = 14;
-  const width = Math.min(270, Math.max(180, window.innerWidth - 24));
-  const estimatedHeight = Math.min(290, 64 + values.length * 26 + (note ? 45 : 0));
+  const width = Math.min(330, Math.max(180, window.innerWidth - 24));
+  const estimatedHeight = Math.min(window.innerHeight - 24, 70 + values.length * 42 + (note ? 60 : 0));
   const x = Math.max(12, Math.min(window.innerWidth - width - 12, (point?.x ?? 12) + offset));
   const below = (point?.y ?? 12) + estimatedHeight + offset < window.innerHeight;
   const y = Math.max(12, Math.min(window.innerHeight - estimatedHeight - 12,

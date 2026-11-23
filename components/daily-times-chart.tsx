@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ChartTooltip, { pointFromMouse, pointFromFocus, type TooltipPoint } from './chart-tooltip';
 import { resolvePeriod, type Period } from '@/lib/call-dashboard';
 
 type DayRow={dia:string;tma_segundos:number|null;tme_segundos:number|null};
@@ -18,7 +19,7 @@ export default function DailyTimesChart(){
  const [loading,setLoading]=useState(false);const [error,setError]=useState('');
  const [hovered,setHovered]=useState<number|null>(null);
  const [selected,setSelected]=useState<number|null>(null);
- const [pointer,setPointer]=useState<{x:number;y:number}|null>(null);
+ const [pointer,setPointer]=useState<TooltipPoint|null>(null);
  useEffect(()=>{setNow(new Date());},[]);
  const resolved=useMemo(()=>{
   if(!now)return null;
@@ -65,15 +66,6 @@ export default function DailyTimesChart(){
  const barX=(i:number,serieIndex:number)=>posX(i)-groupWidth/2+serieIndex*(barWidth+barGap);
  const highlighted=hovered??selected;
  const active=highlighted!==null?rows?.[highlighted]:null;
- const anchorX=pointer&&hovered!==null?pointer.x:highlighted!==null?posX(highlighted):left;
- const anchorY=pointer&&hovered!==null?pointer.y:75;
- const tooltipX=anchorX+170>chartWidth?Math.max(4,anchorX-166):anchorX+12;
- const tooltipY=Math.max(7,Math.min(325-93,anchorY-15));
- const move=(e:MouseEvent<SVGRectElement>)=>{
-  const svg=e.currentTarget.ownerSVGElement;
-  if(!svg)return;const bounds=svg.getBoundingClientRect();
-  if(bounds.width&&bounds.height)setPointer({x:(e.clientX-bounds.left)*chartWidth/bounds.width,y:(e.clientY-bounds.top)*325/bounds.height});
- };
  return <section className="panel" style={{padding:20,marginBottom:18}}>
   <div className="panel-head"><div><h2>{tefVerified?'TMA e TME de fila diário':'TMA e espera total diária (TET legado)'}</h2><p>Colunas agrupadas por dia · tempo de atendimento e {tefVerified?'espera em fila (TEF)':'espera total (TET)'} · horário de Brasília</p></div></div>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
@@ -107,29 +99,20 @@ export default function DailyTimesChart(){
         style={{transition:'opacity 180ms ease-out, fill 180ms ease-out'}}/>;
       })}
      </g>)}
-     {active&&highlighted!==null&&<g pointerEvents="none">
-      <line x1={posX(highlighted)} x2={posX(highlighted)} y1={top} y2={top+height} stroke="var(--muted)" strokeDasharray="4 4"/>
-      <g transform={`translate(${tooltipX} ${tooltipY})`} style={{transition:'transform 160ms ease-out'}}>
-       <rect width="154" height="90" rx="8" fill="var(--panel)" stroke="var(--border)"/>
-       <text x="11" y="20" fontSize="12" fontWeight="700" fill="var(--text)">{active.dia.slice(8,10)+'/'+active.dia.slice(5,7)+'/'+active.dia.slice(0,4)}</text>
-       {series.map((s,i)=><g key={s.key}>
-        <circle cx="15" cy={43+i*22} r="4" fill={s.color}/>
-        <text x="27" y={47+i*22} fontSize="11" fill="var(--text)">{s.label}</text>
-        <text x="143" y={47+i*22} fontSize="11" textAnchor="end" fontWeight="700" fill="var(--text)">{fmt(active[s.key])}</text>
-       </g>)}
-      </g>
-     </g>}
      {rows.map((r,i)=><rect key={r.dia} x={left+i*slotWidth} y={top}
       width={slotWidth} height={height+6}
       fill="transparent" style={{cursor:'crosshair'}} role="button" tabIndex={0}
       aria-label={r.dia+': TMA '+fmt(r.tma_segundos)+', TME '+fmt(r.tme_segundos)}
-      onMouseEnter={e=>{move(e);setHovered(i);}} onMouseMove={move}
-      onMouseLeave={()=>{setHovered(null);setPointer(null);}}
-      onFocus={()=>{setHovered(i);setPointer(null);}} onBlur={()=>setHovered(null)}
-      onClick={()=>{setSelected(i);setHovered(null);setPointer(null);}}
+      onMouseEnter={e=>{setPointer(pointFromMouse(e));setHovered(i);}} onMouseMove={e=>setPointer(pointFromMouse(e))}
+      onMouseLeave={()=>setHovered(null)}
+      onFocus={e=>{setHovered(i);setPointer(pointFromFocus(e));}} onBlur={()=>setHovered(null)}
+      onClick={e=>{setSelected(selected===i?null:i);setPointer(pointFromMouse(e));}}
       onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(i);setHovered(null);}}}/>)}
     </svg>
    </div>
+   <ChartTooltip open={Boolean(active)} point={pointer} title={active ? active.dia.slice(8,10)+'/'+active.dia.slice(5,7)+'/'+active.dia.slice(0,4) : ''}
+    values={active ? series.map(item=>({label:item.label,value:fmt(active[item.key]),color:item.color})) : []}
+    note={tefVerified ? 'TME de fila (TEF) validado.' : 'TET legado não é TME de fila.'}/>
    <div style={{display:'flex',gap:18,justifyContent:'center',flexWrap:'wrap'}}>
     {series.map(s=><span key={s.key} style={{display:'flex',gap:7,alignItems:'center',fontSize:12}}>
      <span style={{height:9,width:9,borderRadius:'50%',background:s.color}}/>{s.label}</span>)}

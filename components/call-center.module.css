@@ -65,7 +65,6 @@
 .workspace :global(.panel-head p) { font-size: 12px; color: var(--cc-muted); line-height: 1.6; }
 .workspace :global(.panel) { border-radius: 12px; margin-bottom: 0 !important; }
 .workspace :is(button, select, input, summary, [tabindex]):focus-visible { outline: 3px solid #2d74ca; outline-offset: 3px; }
-.metadata { padding-top: 8px; border-top: 1px solid var(--border); color: var(--cc-muted); font-size: 11px; line-height: 1.7; }
 .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--cc-muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; }
 .plotScroll { overflow-x: auto; padding: 16px 4px; }
@@ -198,8 +197,6 @@
   color: var(--cc-muted);
   line-height: 1.5;
 }
-.annualNote { font-size: 12px; line-height: 1.6; margin: 0; }
-.annualSourceNote { font-size: 11px; line-height: 1.6; color: var(--cc-muted); margin: 0; }
 @media (max-width: 700px) {
   .annualVariations { grid-template-columns: 1fr; }
 }

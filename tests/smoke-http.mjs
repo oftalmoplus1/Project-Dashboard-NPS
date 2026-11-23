@@ -158,7 +158,7 @@ try {
   await check('do not bypass a Supabase RLS or ACL denial', async () => {
     mode = 'queue-denied';
     const response = await request('/api/chamadas/filas', 'admin-test-session');
-    assert.equal(response.status, 503);
+    assert.equal(response.status, 403);
     assert.equal('rows' in await response.json(), false);
   });
   mode = 'normal';

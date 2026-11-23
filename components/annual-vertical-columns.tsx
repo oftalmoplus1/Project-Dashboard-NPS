@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState, type FocusEvent, type MouseEvent } from 'react';
+import { useEffect, useId, useState, type FocusEvent, type MouseEvent } from 'react';
 import type { ChartMetric } from '@/lib/call-chart-data';
 import { availableAnnualMean } from '@/lib/ligsim-report-data';
 import styles from './call-center.module.css';
@@ -49,6 +49,17 @@ function axisCeiling(values: number[]): number {
 export default function AnnualVerticalColumns({ metrics, year, hasCurrent, hasPrevious, meanMetric }: Props) {
   const tooltipId = useId();
   const [hovered, setHovered] = useState<HoveredColumn | null>(null);
+  // Prevent stale overlays while moving between years or scrolling the chart.
+  useEffect(() => { setHovered(null); }, [year, hasCurrent, hasPrevious]);
+  useEffect(() => {
+    const dismiss = () => setHovered(null);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
+  }, []);
   const actualValues = metrics.flatMap(metric => [
     ...(hasPrevious ? [metric.previous] : []),
     ...(hasCurrent ? [metric.current] : []),

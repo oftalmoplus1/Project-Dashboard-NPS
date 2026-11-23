@@ -109,6 +109,18 @@ try {
   });
   await mkdir('artifacts/call-center-design', { recursive: true });
   await page.screenshot({ path: 'artifacts/call-center-design/desktop-overview.png', fullPage: true });
+  await check('call evolution columns use rounded visible corners', async () => {
+    const columns = page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).locator('[class*="barSegments"]');
+    await columns.first().waitFor({ state: 'attached' });
+    const visible = await columns.evaluateAll(elements => elements.some(el => el.getBoundingClientRect().height > 0));
+    assert.ok(visible, 'at least one column should contain observed calls');
+    const style = await columns.first().evaluate(element => {
+      const computed = getComputedStyle(element);
+      return { radius: parseFloat(computed.borderTopLeftRadius), clipping: computed.overflow };
+    });
+    assert.ok(style.radius >= 8, 'stacked columns should have visibly rounded corners');
+    assert.equal(style.clipping, 'hidden', 'all stacked segments must be clipped to the rounded outline');
+  });
   await check('Tab and Enter navigate the unified dashboard links', async () => {
     await nav('Visão geral').focus();
     await page.keyboard.press('Tab');
@@ -195,7 +207,17 @@ try {
     assert.match(await floating.innerText(), /Recebidas/);
     assert.match(await floating.innerText(), new RegExp(String(year)));
     assert.match(await floating.innerText(), /chamadas/i);
-    assert.match(await floating.innerText(), /Média dos 2 anos/);
+    assert.match(await floating.innerText(), /Média entre anos/);
+    const hasOverlap = await floating.evaluate(element => {
+      return Array.from(element.querySelectorAll('[class*="line"]')).some(line => {
+        const label = line.querySelector('[class*="label"]');
+        const value = line.querySelector('[class*="value"]');
+        if (!label || !value) return false;
+        return label.getBoundingClientRect().right + 8 > value.getBoundingClientRect().left;
+      });
+    });
+    assert.equal(hasOverlap, false, 'tooltip labels and values must not overlap');
+
     await page.mouse.move(12, 12);
     await page.locator('[data-testid="annual-column-tooltip"][data-open="false"]').waitFor();
     await totalColumn.focus();
@@ -215,13 +237,13 @@ try {
     assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);
     assert.equal(await page.getByTestId('annual-column-total-' + year).count(), 1);
     const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
-    await singleYearLine.waitFor({ state: 'attached' });
-    assert.equal(await singleYearLine.getAttribute('y1'), await singleYearLine.getAttribute('y2'));
-    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /único ano com dados/);
+    assert.equal(await singleYearLine.count(), 0, 'mean must not be shown with only one year observed');
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Média entre anos indisponível/);
     assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
     await totalColumn.hover();
     await floating.waitFor();
-    assert.match(await floating.innerText(), /apenas 1 ano com dados/);
+    assert.match(await floating.innerText(), /Média entre anos/);
+    assert.match(await floating.innerText(), /Indisponível/);
     assert.match(await floating.innerText(), /Variação indisponível/);
 
     await page.setViewportSize({ width: 375, height: 900 });

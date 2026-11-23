@@ -5,6 +5,7 @@
 O componente `components/chart-tooltip.tsx` e seus estilos em `components/chart-tooltip.module.css` definem o tooltip padrão do sistema. Todo gráfico interativo novo deve utilizá-lo em vez de criar um tooltip isolado em SVG, CSS ou biblioteca externa.
 
 - Abrir ao passar o mouse e ao receber foco pelo teclado; atualizar os dados sem piscar ao mudar de barra/ponto.
+- Separar legenda e valor em colunas independentes; permitir quebra de linha quando textos ou números forem longos. Nunca sobrepor rótulos aos valores.
 - Usar animação suave de opacidade, deslocamento e posição (180 ms, 90 ms para acompanhar o cursor). Desativar transições quando `prefers-reduced-motion: reduce`.
 - Manter o tooltip dentro da área visível da janela, sem depender do overflow/scroll interno do gráfico.
 - Os elementos relevantes devem ser operáveis por teclado (`Tab`, `Enter`/`Espaço` quando selecionáveis), com `aria-label` descrevendo o mesmo valor.
@@ -36,7 +37,7 @@ import ChartTooltip, { pointFromMouse, pointFromFocus } from './chart-tooltip';
 | Chamadas por mês | Colunas verticais agrupadas, médias em linha horizontal e tooltip por mês |
 | Chamadas por hora | Linhas e pontos, tooltip por faixa horária |
 | Visão geral | Colunas empilhadas, tooltip por período |
-| Comparativo anual | Colunas verticais e tooltip por ano/série |
+| Comparativo anual | Colunas verticais e tooltip por ano/série; linha de média somente quando ambos os anos têm registros |
 | TMA e TME diário | Colunas agrupadas e tooltip por dia, preservando a distinção TEF/TET |
 | Chamadas por ramal | Barras de volume e tooltip por identificador |
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { localToday, parseAggregateRows, type ChartMetric } from '@/lib/call-chart-data';
-import { annualComparison, annualMetrics, comparisonWindows } from '@/lib/ligsim-report-data';
+import { annualComparison, annualMetrics, availableAnnualMean, comparisonWindows } from '@/lib/ligsim-report-data';
 import AnnualVerticalColumns from './annual-vertical-columns';
 import styles from './call-center.module.css';
 
@@ -53,8 +53,8 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
   const hasCurrent = snapshot?.key === key && snapshot.currentRows > 0;
   const hasPrevious = snapshot?.key === key && snapshot.previousRows > 0;
   const bothEmpty = snapshot?.key === key && !hasCurrent && !hasPrevious;
-  const mean = hasCurrent && hasPrevious ?
-    metrics?.find(metric => metric.key === selected)?.mean ?? null : null;
+  const chosen = metrics?.find(metric => metric.key === selected);
+  const mean = chosen ? availableAnnualMean(chosen.current, chosen.previous, !!hasCurrent, !!hasPrevious) : null;
 
   return <section className="panel" style={{ padding: 20 }}>
     <div className="panel-head">
@@ -96,7 +96,7 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
     {metrics && !bothEmpty && <div className={styles.annualResults}>
       {(!hasCurrent || !hasPrevious) && <p role="status">
         Um dos anos não contém registros. Ausência de histórico não significa zero chamadas;
-        a comparação percentual e a média estão indisponíveis.
+        a variação percentual está indisponível. A linha indica apenas o ano com dados, não uma média entre anos.
       </p>}
 
       <AnnualVerticalColumns metrics={metrics} year={year}
@@ -117,9 +117,12 @@ export default function AnnualCallComparison({ year, onYearChange, currentYear, 
 
       <p className={styles.annualNote}>
         {mean === null ?
-          'Média horizontal indisponível sem dois anos com registros.' :
-          'Linha horizontal tracejada: média entre os dois valores de ' +
-          labels[selected].toLowerCase() + ' = ' + format(mean) + '.'}
+          'Sem dados suficientes para a linha horizontal.' :
+          hasCurrent && hasPrevious ?
+            'Linha horizontal tracejada: média dos dois anos de ' +
+            labels[selected].toLowerCase() + ' = ' + format(mean) + '.' :
+            'Linha horizontal tracejada: referência do único ano com dados para ' +
+            labels[selected].toLowerCase() + ' = ' + format(mean) + '. Não representa média entre anos.'}
         {' '}O aumento do volume não representa automaticamente melhora do atendimento.
       </p>
       <p className={styles.annualSourceNote}>

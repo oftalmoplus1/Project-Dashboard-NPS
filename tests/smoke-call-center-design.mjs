@@ -267,9 +267,9 @@ try {
   });
   await check('access denial clears all visible volume and time values', async () => {
     mode = 'denied'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'última consulta válida das filas' }).waitFor();
-    assert.ok(await totals.getByText('120', { exact: true }).isVisible());
-    assert.match(await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).innerText(), /sem permissão de leitura/);
+    await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'Sessão expirada' }).waitFor();
+    assert.equal(await totals.getByText('120', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).count(), 0);
   });
   await check('no uncaught browser errors', async () => assert.deepEqual(pageErrors, []));
   console.log(`CALL_CENTER_BROWSER_PASSED=${passed}; fixtures=synthetic; production_validation=false`);

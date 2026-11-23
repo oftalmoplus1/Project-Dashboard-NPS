@@ -22,6 +22,15 @@ const upstream = createServer(async (req, res) => {
   if (req.headers.apikey !== 'design-test-key') return send(401, {});
   if (url.pathname === '/auth/v1/user') return req.headers.authorization === 'Bearer design-admin-session'
     ? send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: 'admin' } }) : send(401, {});
+  if (url.pathname === '/rest/v1/listar_filas') {
+    if (req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
+    if (mode === 'error') return send(503, {});
+    if (mode === 'denied') return send(403, {});
+    if (url.searchParams.get('select')?.includes('member')) return send(400, {});
+    return send(200, [{ id: 1, name: 'FILA-TESTE', received: 120, answered: 80,
+      abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4
+    }], { 'Content-Range': '0-0/1' });
+  }
   if (!url.pathname.startsWith('/rest/v1/rpc/dashboard_chamadas_')) return send(404, {});
   if (req.headers.authorization !== 'Bearer design-admin-session') return send(403, {});
   rpcRequests++;
@@ -100,7 +109,7 @@ try {
     assert.match(text, /Aguardando validação SQL/); assert.ok(!text.includes('00:40'));
   });
   await check('only overview is rendered initially; no monthly or hourly requests', async () => {
-    assert.equal(await page.getByRole('tab').count(), 5);
+    assert.equal(await page.getByRole('tab').count(), 4);
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por mês', exact: true }).count(), 0);
   });
@@ -217,19 +226,9 @@ try {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.unroute('**/api/chamadas?*');
   });
-  await check('extension chart displays only validated source results after explicit filter', async () => {
-    await page.route('**/api/chamadas/ramais?*', async route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [
-        { extension: '2001', answered: 8 }, { extension: '2002', answered: 14 },
-      ] }),
-    }));
-    await page.getByRole('tab', { name: /Por ramal/ }).click();
-    await page.getByRole('heading', { name: 'Chamadas atendidas por ramal', exact: true }).waitFor();
-    assert.equal(await page.getByText('2002', { exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Consultar', exact: true }).click();
-    await page.getByText('2002', { exact: true }).waitFor();
-    assert.equal(await page.getByText('14', { exact: true }).count(), 1);
-    await page.unroute('**/api/chamadas/ramais?*');
+  await check('unused ramal tab and endpoint are removed', async () => {
+    assert.equal(await page.getByRole('tab', { name: /Por ramal/ }).count(), 0);
+    assert.equal((await page.request.get(origin + '/api/chamadas/ramais')).status(), 404);
   });
   await page.getByRole('tab', { name: 'Visão geral', exact: true }).click();
   for (const width of [375, 768, 1440]) await check(`no document overflow at ${width}px`, async () => {
@@ -261,16 +260,16 @@ try {
   });
   await check('transient error preserves same-period values with an explicit warning', async () => {
     mode = 'error'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    const alert = page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'consulta válida' });
+    const alert = page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'última consulta válida das filas' });
     await alert.waitFor();
     assert.ok(await totals.getByText('120', { exact: true }).isVisible());
-    assert.match(await alert.innerText(), /consulta válida/);
+    assert.match(await alert.innerText(), /consulta válida das filas/);
   });
   await check('access denial clears all visible volume and time values', async () => {
     mode = 'denied'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-    await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'Sessão expirada' }).waitFor();
-    assert.equal(await totals.getByText('120', { exact: true }).count(), 0);
-    assert.equal(await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).count(), 0);
+    await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'última consulta válida das filas' }).waitFor();
+    assert.ok(await totals.getByText('120', { exact: true }).isVisible());
+    assert.match(await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).innerText(), /sem permissão de leitura/);
   });
   await check('no uncaught browser errors', async () => assert.deepEqual(pageErrors, []));
   console.log(`CALL_CENTER_BROWSER_PASSED=${passed}; fixtures=synthetic; production_validation=false`);

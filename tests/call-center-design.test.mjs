@@ -11,6 +11,9 @@ const out = fs.mkdtempSync(path.join(os.tmpdir(), 'call-center-design-'));
 const compiler = createRequire(import.meta.url).resolve('typescript/lib/tsc.js');
 execFileSync(process.execPath, [compiler, 'lib/call-center-design.ts', '--target', 'ES2022', '--module', 'commonjs', '--strict', '--skipLibCheck', '--outDir', out], { cwd: root });
 const { default: lib } = await import(pathToFileURL(path.join(out, 'call-center-design.js')).href);
+execFileSync(process.execPath, [compiler, 'lib/dashboard-registry.ts', '--target', 'ES2022', '--module', 'commonjs', '--strict', '--skipLibCheck', '--outDir', out], { cwd: root });
+const { default: registry } = await import(pathToFileURL(path.join(out, 'dashboard-registry.js')).href);
+
 after(() => fs.rmSync(out, { recursive: true, force: true }));
 for (const [input, expected] of [[0, '00:00'], [32, '00:32'], [163, '02:43'], [3599, '59:59'], [3599.6, '01:00:00'], [3690, '01:01:30'], [86400, '24:00:00'], [0.49, '00:00']]) {
   test(`format duration ${input}`, () => assert.equal(lib.formatCallDuration(input), expected));
@@ -46,4 +49,15 @@ test('native keys and invalid indexes are not intercepted', () => {
   for (const key of ['Enter', ' ', 'Tab', 'ArrowDown']) assert.equal(lib.nextCallTabIndex(0, key), null);
   assert.equal(lib.nextCallTabIndex(-1, 'Home'), null);
   assert.equal(lib.nextCallTabIndex(4, 'End'), null);
+});
+
+test('all five implemented Call Center views are registered in the admin catalog', () => {
+ const expected = ['overview', 'month', 'hour', 'annual', 'tempos-diarios'];
+ assert.deepEqual(registry.existingDashboards.map(item => item.callView), expected);
+ assert.equal(new Set(registry.existingDashboards.map(item => item.codigo)).size, expected.length);
+ assert.equal(registry.existingDashboards.some(item => item.codigo.includes('ramal')), false);
+ for (const entry of registry.existingDashboards) {
+  assert.equal(registry.isExistingDashboardCode(entry.codigo), true);
+  assert.equal(lib.CALL_CENTER_NAV_ITEMS.some(item => item.id === entry.callView), true);
+ }
 });

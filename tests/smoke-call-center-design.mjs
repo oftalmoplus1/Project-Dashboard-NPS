@@ -122,7 +122,7 @@ try {
       const computed = getComputedStyle(element);
       return { radius: parseFloat(computed.borderTopLeftRadius), clipping: computed.overflow };
     });
-    assert.ok(style.radius >= 8, 'stacked columns should have visibly rounded corners');
+    assert.ok(style.radius >= 4 && style.radius <= 5, 'evolution columns should have a subtle 4px corner radius');
     assert.equal(style.clipping, 'hidden', 'all stacked segments must be clipped to the rounded outline');
   });
   await check('Tab and Enter navigate the unified dashboard links', async () => {
@@ -216,6 +216,14 @@ try {
     assert.match(await floating.innerText(), new RegExp(String(year)));
     assert.match(await floating.innerText(), /chamadas/i);
     assert.match(await floating.innerText(), /Média entre anos/);
+    const tooltipBounds = await floating.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: window.innerWidth, height: window.innerHeight };
+    });
+    assert.ok(tooltipBounds.left >= 0 && tooltipBounds.right <= tooltipBounds.width + 1,
+      'annual tooltip must stay within horizontal viewport');
+    assert.ok(tooltipBounds.top >= 0 && tooltipBounds.bottom <= tooltipBounds.height + 1,
+      'annual tooltip must stay within vertical viewport');
     const hasOverlap = await floating.evaluate(element => {
       return Array.from(element.querySelectorAll('[class*="line"]')).some(line => {
         const label = line.querySelector('[class*="label"]');
@@ -245,15 +253,20 @@ try {
     assert.equal(await page.getByTestId('annual-column-total-' + (year - 1)).count(), 0);
     assert.equal(await page.getByTestId('annual-missing-total-' + (year - 1)).count(), 1);
     assert.equal(await page.getByTestId('annual-column-total-' + year).count(), 1);
-    const singleYearLine = page.getByTestId('annual-mean-horizontal-line');
-    assert.equal(await singleYearLine.count(), 0, 'mean must not be shown with only one year observed');
-    assert.equal(await page.getByText(/Média entre anos indisponível: é necessário haver registros/).count(), 0);
+    // There is no interannual average: use the real year's volume as a
+    // distinct, clearly labeled visual reference, not as a two-year mean.
+    assert.equal(await page.getByTestId('annual-mean-horizontal-line').count(), 0,
+      'never label a single observed year as an interannual average');
+    const oneYearReference = page.getByTestId('annual-reference-horizontal-line');
+    await oneYearReference.waitFor({ state: 'attached' });
+    assert.equal(await oneYearReference.getAttribute('y1'), await oneYearReference.getAttribute('y2'));
+    assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), new RegExp('Referência ' + year));
     assert.match(await page.getByRole('region', { name: 'Comparativo anual' }).innerText(), /Variação: — \(histórico de um dos anos ausente\)/);
     await totalColumn.hover();
     await floating.waitFor();
-    assert.match(await floating.innerText(), /Média entre anos/);
-    assert.match(await floating.innerText(), /Indisponível/);
-    assert.match(await floating.innerText(), /Variação indisponível/);
+    assert.match(await floating.innerText(), new RegExp('Referência ' + year));
+    assert.match(await floating.innerText(), /Variação/);
+    assert.match(await floating.innerText(), /sem dados em/);
 
     await page.setViewportSize({ width: 375, height: 900 });
     await settleLayout();

@@ -1,3 +1,4 @@
+import { allowedMutationOrigin } from '@/lib/server/public-origin';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/server/auth-session';
@@ -56,10 +57,10 @@ export async function POST(
 ){
  const {slug}=await params;
  if(!validSlug(slug))return NextResponse.json({error:'Tópico inválido.'},{status:400,headers:noStore});
- const origin=request.headers.get('origin');
- const site=request.headers.get('sec-fetch-site');
- if((origin&&origin!==new URL(request.url).origin)||site==='cross-site'){
-  return NextResponse.json({error:'Origem inválida.'},{status:403,headers:noStore});
+ try {
+  if(!allowedMutationOrigin(request))return NextResponse.json({error:'Origem inválida.'},{status:403,headers:noStore});
+ }catch{
+  return NextResponse.json({error:'Origem pública configurada incorretamente.'},{status:503,headers:noStore});
  }
  if(!request.headers.get('content-type')?.includes('application/json')){
   return NextResponse.json({error:'Formato inválido.'},{status:415,headers:noStore});

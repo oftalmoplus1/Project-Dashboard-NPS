@@ -1,3 +1,4 @@
+import { allowedMutationOrigin } from '@/lib/server/public-origin';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/server/auth-session';
@@ -20,15 +21,13 @@ async function rpc(token: string, name: string, params: Record<string, string>) 
  });
 }
 
-function originAllowed(request: Request): boolean {
- const origin = request.headers.get('origin');
- const site = request.headers.get('sec-fetch-site');
- return (!origin || origin === new URL(request.url).origin) && site !== 'cross-site';
-}
-
 async function context(request: Request, slug: string) {
  if (!validSlug(slug)) return { error: NextResponse.json({ error: 'Tópico inválido.' }, { status: 400, headers }) };
- if (!originAllowed(request)) return { error: NextResponse.json({ error: 'Origem inválida.' }, { status: 403, headers }) };
+ try {
+  if (!allowedMutationOrigin(request)) return { error: NextResponse.json({ error: 'Origem inválida.' }, { status: 403, headers }) };
+ } catch {
+  return { error: NextResponse.json({ error: 'Origem pública configurada incorretamente.' }, { status: 503, headers }) };
+ }
  if (!request.headers.get('content-type')?.includes('application/json'))
   return { error: NextResponse.json({ error: 'Formato inválido.' }, { status: 415, headers }) };
  const token = (await cookies()).get(SESSION_COOKIE)?.value;

@@ -47,3 +47,15 @@ Pré-requisitos: ambiente de homologação separado do banco de produção, cont
 ## Estado e responsável pelo próximo passo
 
 A execução em PostgreSQL isolado e o CI podem ser acompanhados no PR #26. A homologação real depende de um **ambiente de teste do sistema** identificado e autorizado pelo responsável; nenhuma mudança no banco de produção é permitida antes da conclusão.
+
+## Decisão de infraestrutura — 24/11/2026
+
+O responsável confirmou que **existe somente o Supabase de produção**; não há Supabase de homologação disponível. Portanto, o Portão B acima está **bloqueado** até ser oferecido um ambiente de teste isolado ou ser aprovado um procedimento alternativo formal.
+
+**Plano recomendado, sem interferir na produção:**
+1. Manter o PR #26 em rascunho e continuar verificações automatizadas com PostgreSQL 15.8 isolado no GitHub Actions (já preparadas). A instância conectada por Supabase MCP é de outro projeto e não deve receber migrações deste aplicativo.
+2. Avaliar um ambiente temporário de homologação com PostgreSQL/Auth/PostgREST separado. Ele pode usar dados totalmente sintéticos e jamais deve compartilhar volumes, bancos, secrets, rede administrativa ou endpoints com produção. Verificar recursos e custos antes de criar infraestrutura.
+3. Validar com tokens de teste e permissões de admin/manager/anon no ambiente temporário, junto com o front-end isolado; somente depois avaliar rollout real.
+4. Para uma futura implantação no único Supabase produtivo, exigir preflight atualizado, revisão de mudança, janela, backup recuperável e restauração testada, plano de retorno e autorização explícita. Não tratar CI isolado como substituto de backup ou de homologação real.
+
+**Não houve autorização para instalar SQL, migrar ou fazer deploy em produção.**

@@ -128,7 +128,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     return () => { active = false; controller.abort(); };
   }, [rangeStart, rangeEnd, rangeKey, queueMode, requestNumber]);
   useEffect(() => {
-    if (!rangeKey) return;
+    if (!rangeKey || queueMode) { setExtra(null); return; }
     const controller = new AbortController();
     let active = true;
     setExtra(null);
@@ -150,7 +150,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
     };
     void load();
     return () => { active = false; controller.abort(); };
-  }, [rangeStart, rangeEnd, rangeKey, requestNumber]);
+  }, [rangeStart, rangeEnd, rangeKey, queueMode, requestNumber]);
   const refresh = useCallback(() => {
     if (!refreshing && !queueLoading) { setNow(new Date()); setRequestNumber(value => value + 1); }
   }, [refreshing, queueLoading]);
@@ -166,7 +166,19 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   const hoveredItem = data?.buckets.find(bucket => bucket.key === hoveredBucket);
   const max = Math.max(1, ...(data?.buckets.map(bucket => bucket.total) ?? []));
   const times = extra?.key === rangeKey && extra.status === 'ready' ? extra : null;
-  const timeStatus = extra?.key !== rangeKey ? 'loading' : extra.status;
+  const timeStatus = queueMode
+    ? queueData ? 'ready' : queueError ? 'unavailable' : 'loading'
+    : extra?.key !== rangeKey ? 'loading' : extra.status;
+  const shownTimes = queueMode
+    ? queueData ? {
+      tma: queueData.summary.tmaSeconds, tme: queueData.summary.tmeSeconds,
+      waitKind: 'queue_tme' as const,
+      tmaQueues: queueData.summary.tmaQueues, tmeQueues: queueData.summary.tmeQueues,
+    } : null
+    : shownSummary && times ? {
+      tma: times.tma, tme: times.wait,
+      waitKind: times.semantics === 'tef' ? 'tef' as const : 'tet_legacy' as const,
+    } : null;
   const showPeriod = tab === 'overview' || tab === 'hour';
   return <div className={styles.workspace}>
     <div className={styles.header}>
@@ -194,7 +206,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
         <CallCenterSummary summary={shownSummary} sourceMode={queueMode ? 'snapshot' : 'history'}
           loading={!shownSummary && !(queueMode ? queueError : error) && !resolved?.error}
           partial={!!now && rangeEnd === localToday(now)}
-          times={shownSummary && times ? { tma: times.tma, tme: times.wait, tefVerified: times.semantics === 'tef' } : null}
+          times={shownTimes}
           timeStatus={shownSummary ? timeStatus : ((queueMode ? queueError : error) || resolved?.error) ? 'unavailable' : 'loading'} />
         {queueMode && queueData && <section className={`panel ${styles.chart}`} aria-label="Estado atual das filas">
           <div className="panel-head"><div>
@@ -216,7 +228,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
               </tr>)}</tbody>
             </table>
           </div>
-          <p className={styles.hint}>Fonte listar_filas, último lote identificado pelo n8n. TMA/TME continuam provenientes do relatório de chamadas. A hora da consulta não comprova uma atualização da coleta.</p>
+          <p className={styles.hint}>Fonte listar_filas, último lote identificado pelo n8n. TMA/TME são médias simples dos valores informados pelas filas atendidas nesta coleta; não representam a média ponderada por chamadas. A hora da consulta não comprova uma atualização da coleta.</p>
         </section>}
         {!queueMode && data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">
           <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>{rangeStart === rangeEnd ? 'Dia completo, de 0h a 24h, em intervalos de duas horas.' : data.range.granularity === 'month' ? 'Totais por mês no período.' : 'Totais por dia no período.'}</p></div></div>

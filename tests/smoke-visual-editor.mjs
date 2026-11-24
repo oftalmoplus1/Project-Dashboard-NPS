@@ -114,6 +114,49 @@ try {
  const errors = [];
  page.on('pageerror', error => errors.push(error.message));
 
+ await check('layout API denies unauthenticated access and forged manager roles', async () => {
+  const route = origin + '/api/editor/dashboards/' + draftId + '/layout';
+  const base = { method: 'GET', signal: AbortSignal.timeout(10000) };
+  const unauth = await fetch(route, base);
+  assert.equal(unauth.status, 401);
+  const bad = await fetch(route, {
+   ...base, headers: { Cookie: 'dashboard_tools_access_token=visual-manager' }
+  });
+  assert.equal(bad.status, 403);
+  assert.equal(layoutReads, 0);
+  assert.equal(layoutWrites, 0);
+  const put = await fetch(route, {
+   method: 'PUT', headers: {
+    Cookie: 'dashboard_tools_access_token=visual-manager',
+    'Content-Type': 'application/json',
+   }, body: JSON.stringify({ revision: 0, blocks: [] }),
+   signal: AbortSignal.timeout(10000),
+  });
+  assert.equal(put.status, 403);
+  assert.equal(layoutWrites, 0);
+ });
+ await check('layout API rejects cross-origin PUT and arbitrary block fields', async () => {
+  const route = origin + '/api/editor/dashboards/' + draftId + '/layout';
+  const cookie = 'dashboard_tools_access_token=visual-admin';
+  const crossSite = await fetch(route, {
+   method: 'PUT',
+   headers: { Cookie: cookie, Origin: 'https://attacker.example',
+    'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' },
+   body: JSON.stringify({ revision: 0, blocks: [] }),
+   signal: AbortSignal.timeout(10000),
+  });
+  assert.equal(crossSite.status, 403);
+  const extra = await fetch(route, {
+   method: 'PUT', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+   body: JSON.stringify({ revision: 0, blocks: [{
+    id:'local-1',kind:'kpi',title:'X',x:0,y:0,w:3,h:2,source:null,
+    metric:'',chartOrientation:'vertical',text:'',sql:'SELECT * FROM auth.users'
+   }] }),
+   signal: AbortSignal.timeout(10000),
+  });
+  assert.equal(extra.status, 400);
+  assert.equal(layoutWrites, 0);
+ });
  await check('anonymous cannot open editor by URL', async () => {
   await page.goto(editorUrl);
   assert.match(page.url(), /\/login/);

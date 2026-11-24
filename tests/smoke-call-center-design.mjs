@@ -112,13 +112,26 @@ try {
   await check('abandonment formula ignores incompatible legacy percentage', async () => {
     assert.match(await page.getByRole('region', { name: 'Taxa de abandono', exact: true }).innerText(), /8,33%/);
   });
+  await check('simplified card descriptions and no complementary indicators block', async () => {
+    const labels = [
+      ['Taxa de abandono', 'Saiu da fila sem ser atendida'],
+      ['TMA', 'Tempo médio de atendimento'],
+      ['TME de fila', 'Tempo médio de espera'],
+    ];
+    for (const [region, description] of labels) {
+      const card = page.getByRole('region', { name: region, exact: true });
+      assert.equal(await card.locator('p').last().innerText(), description);
+    }
+    assert.equal(await page.getByText('Indicadores complementares', { exact: true }).count(), 0);
+    assert.equal(await page.locator('details').count(), 0);
+  });
   await check('Hoje uses the two API-provided queue averages, not CDR', async () => {
     const tma = page.getByRole('region', { name: 'TMA', exact: true });
     const tme = page.getByRole('region', { name: 'TME de fila', exact: true });
     await tma.getByText('03:25', { exact: true }).waitFor();
     await tme.getByText('01:21', { exact: true }).waitFor();
-    assert.match(await tma.innerText(), /Média simples do TMA informado por 1 fila/);
-    assert.match(await tme.innerText(), /Média simples do TME informado por 1 fila/);
+    assert.match(await tma.innerText(), /Tempo médio de atendimento/);
+    assert.match(await tme.innerText(), /Tempo médio de espera/);
   });
   await check('one upper menu shows five dashboards after retiring ramal and loads only overview initially', async () => {
     assert.equal(await menu.getByRole('link').count(), 5);

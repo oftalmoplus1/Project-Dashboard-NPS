@@ -55,4 +55,10 @@ BEGIN
 END
 $$;
 SQL
+# Fase 3B: executar preflight/posflight no banco EFEMERO de CI.
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_preflight_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_layout_rascunho_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_posflight_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-layout-assert.sql
 echo "POSTGRESQL_DRAFTS_INTEGRATION_PASSED"
+echo "POSTGRESQL_EDITOR_LAYOUT_INTEGRATION_PASSED"

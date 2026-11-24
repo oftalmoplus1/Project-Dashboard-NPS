@@ -213,6 +213,15 @@ try {
     await nav('Por hora').click();
     await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).waitFor();
     const chart = page.getByRole('group', { name: /Chamadas recebidas, atendidas e abandonadas por hora/ });
+    assert.equal(await page.getByLabel('Serie da media horaria').count(), 0,
+      'the mean metric dropdown must not be displayed');
+    assert.equal(await page.getByLabel('Detalhar hora').count(), 0,
+      'the hour selector must not be displayed');
+    assert.equal(await page.getByRole('option', { name: 'Selecione' }).count(), 0,
+      'the hour placeholder must not be displayed');
+    const meanTitle = chart.locator('line > title');
+    assert.match(await meanTitle.textContent(), /Média de recebidas/,
+      'the received-call average should remain in the chart');
     const hour = chart.locator('rect[role="button"]').nth(8);
     await hour.hover();
     const tooltip = page.getByRole('tooltip');

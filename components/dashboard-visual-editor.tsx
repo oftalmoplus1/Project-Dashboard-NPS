@@ -88,6 +88,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  const canvasRef = useRef<HTMLDivElement>(null);
  const dragged = useRef<Dragged | null>(null);
  const resizeSession = useRef<ResizeSession | null>(null);
+ const nextLocalId = useRef(0);
  const blocksRef = useRef(blocks);
  blocksRef.current = blocks;
 
@@ -118,7 +119,8 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
    setFeedback('Limite de 40 componentes por dashboard nesta etapa.');
    return;
   }
-  const id = crypto.randomUUID();
+  // Identificadores somente locais: nao dependem de Web Crypto/HTTPS.
+  const id = 'local-' + (++nextLocalId.current);
   const next = addVisualBlock(blocksRef.current, kind, id, x, y);
   if (next.length === blocksRef.current.length) {
    setFeedback('Não há espaço disponível na grade para este componente.');

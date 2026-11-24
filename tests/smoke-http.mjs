@@ -10,6 +10,7 @@ const fixtures = [
 ];
 let mode = 'normal';
 let rpcRequests = 0;
+let queueRpcRequests = 0;
 let passed = 0;
 const upstream = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
@@ -26,6 +27,7 @@ const upstream = createServer(async (req, res) => {
       return send(200, { id: '00000000-0000-4000-8000-000000000001', app_metadata: { dashboard_role: role }, user_metadata: { dashboard_role: 'admin' } });
     }
     if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+      queueRpcRequests++;
       assert.equal(req.method, 'POST');
       assert.equal(req.headers.authorization, 'Bearer admin-test-session');
       assert.equal(req.headers['content-type'], 'application/json');
@@ -82,6 +84,12 @@ for (const stream of [app.stdout, app.stderr]) stream.on('data', part => { logs 
 const query = '?start=2026-01-02&end=2026-01-03';
 const request = (path, token) => fetch(`http://127.0.0.1:${port}${path}`, { headers: token ? { Cookie: `dashboard_tools_access_token=${token}` } : {}, signal: AbortSignal.timeout(10000) });
 const check = async (title, run) => { await run(); passed++; console.log(`ok ${passed} - ${title}`); };
+function dataRequestsContainPrivateFields(payload) {
+  const serialized = JSON.stringify(payload);
+  return ['agent_name', 'dstchannel', '"src"', '"dst"', '"member"', 'authorization', 'service_role']
+    .some(sensitive => serialized.includes(sensitive));
+}
+
 try {
   let ready = false;
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -172,6 +180,64 @@ try {
     assert.equal((await request('/api/chamadas/filas', 'admin-test-session')).status, 403);
     mode = 'normal';
   });
+  await check('preview requires admin session before querying queue data', async () => {
+    const path = '/api/catalogo/fontes-editor/listar-filas/previa';
+    let count = queueRpcRequests;
+    assert.equal((await request(path)).status, 401);
+    assert.equal(queueRpcRequests, count);
+    for (const token of ['manager-test-session', 'expired-test-session', 'unprivileged-test-session']) {
+      count = queueRpcRequests;
+      assert.equal((await request(path, token)).status, 403);
+      assert.equal(queueRpcRequests, count, 'Denied role must not reach the RPC');
+    }
+  });
+  await check('preview includes aggregates only, correct durations and source freshness', async () => {
+    mode = 'normal';
+    const path = '/api/catalogo/fontes-editor/listar-filas/previa';
+    const response = await request(path, 'admin-test-session');
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    const data = await response.json();
+    assert.deepEqual(Object.keys(data.metrics).sort(), [
+      'answered', 'abandoned', 'received', 'tmaQueues', 'tmaSeconds', 'tmeQueues', 'tmeSeconds', 'waiting'
+    ].sort());
+    assert.deepEqual(data.metrics, {
+      received: 120, answered: 80, abandoned: 10, waiting: 4,
+      tmaSeconds: 192, tmeSeconds: 78, tmaQueues: 1, tmeQueues: 1
+    });
+    assert.equal(data.source, 'listar_filas');
+    assert.equal(data.kind, 'latest_snapshot');
+    assert.equal(data.finalidade, 'previa_administrativa');
+    assert.ok(Number.isFinite(Date.parse(data.sourceUpdatedAt)));
+    assert.ok(Number.isFinite(Date.parse(data.consultedAt)));
+    assert.ok(!('rows' in data) && !('agents' in data) && !('members' in data));
+    assert.equal(dataRequestsContainPrivateFields(data), false);
+  });
+  await check('preview rejects stale, incomplete and forbidden queue snapshots', async () => {
+    const path = '/api/catalogo/fontes-editor/listar-filas/previa';
+    for (const failure of ['queue-empty', 'queue-invalid', 'queue-stale', 'queue-mixed']) {
+      mode = failure;
+      const response = await request(path, 'admin-test-session');
+      assert.equal(response.status, 503, failure);
+      assert.equal('metrics' in await response.json(), false, failure);
+    }
+    mode = 'queue-denied';
+    assert.equal((await request(path, 'admin-test-session')).status, 403);
+    mode = 'normal';
+  });
+  await check('preview ignores arbitrary query values and denies write methods', async () => {
+    const path = '/api/catalogo/fontes-editor/listar-filas/previa';
+    const response = await request(path + '?source=auth.users&sql=drop', 'admin-test-session');
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).source, 'listar_filas');
+    const result = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST',
+      headers: { Cookie: 'dashboard_tools_access_token=admin-test-session' },
+      signal: AbortSignal.timeout(10000)
+    });
+    assert.equal(result.status, 405);
+  });
+
   await check('old ramal route is removed even for authenticated admins', async () => {
     assert.equal((await request('/api/chamadas/ramais' + query, 'admin-test-session')).status, 404);
   });

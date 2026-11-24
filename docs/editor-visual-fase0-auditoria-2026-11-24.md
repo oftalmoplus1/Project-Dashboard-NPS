@@ -80,3 +80,19 @@ Não encaminhar tokens, senhas, conteúdo de `auth.users`, IDs de usuários ou l
 - Schema real de produção: **não verificado nesta sessão**; depende dos resultados do SQL no self-hosted correto.
 - Migrations de criação de rascunhos: **não geradas nem executadas**, até confirmação do schema.
 - Código Next.js, banco de produção, integrações, CI/deploy: **inalterados nesta etapa**.
+
+
+## 8. Resultado parcial do inventário recebido — CSV 239
+
+O arquivo `Supabase Snippet Untitled query 239.csv`, enviado pelo responsável em 24/11/2026, corresponde **somente ao Bloco 6 (metadados das fontes)**. Possui 44 linhas: 23 colunas em `public.listar_filas` e 21 colunas em `public.relatorio_chamadas`. Ambas aparecem como tabelas comuns (`relkind='r'`).
+
+Evidências úteis do CSV:
+- `listar_filas`: `id integer NOT NULL`, `name text NOT NULL`, `received smallint`, `answered smallint`, `waiting_calls smallint`, `abandon_more_30s smallint`, `abandon_less_30s smallint`, `tma time without time zone NOT NULL`, `tme time without time zone NOT NULL`, `updated_at timestamptz`. `member text[] NOT NULL` existe, mas **não deve ser disponibilizado** automaticamente no catálogo de métricas.
+- `relatorio_chamadas`: `id integer NOT NULL`, `init_time timestamptz`, `final_time timestamptz`, `disposition text NOT NULL`, `call_direction text NOT NULL`, `ta smallint`, `tet smallint`, `queuename text`, `updated_at timestamptz`. Campos `src`, `dst`, `agent_name` e `dstchannel` exigem avaliação de privacidade; **não autorizar acesso livre** pelo editor.
+- Durações `tma`/`tme` em `listar_filas` usam o tipo PostgreSQL `time without time zone`, mas semanticamente representam durações. Consultas devem tratá-las como tal; evite operações arbitrárias sobre o tipo temporal.
+- O campo `updated_at` de `listar_filas` marca estado da coleta, não transforma a tabela mutável em histórico.
+- Colunas de métricas que aceitam `NULL` devem ter semântica de ausência distinta de zero; operações aritméticas dependem de homologação, especialmente taxas e médias.
+
+**Ainda não verificado:** Blocos 1 a 5B — existência e estado real do schema `dashboard_catalog`, constraints, chaves, RLS, grants, policies, assinaturas de RPCs. O arquivo recebido **não é evidência suficiente** para iniciar migração/CRUD de dashboards. Uma consulta consolidada de somente leitura poderá ser usada para exportar todos os blocos em um CSV único.
+
+Nenhum dado operacional, identificação pessoal ou segredo foi copiado do CSV para este documento: apenas metadados de campos.

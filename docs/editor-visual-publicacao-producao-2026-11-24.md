@@ -62,3 +62,19 @@ Decisão do responsável: sem homologação; prosseguir com CI/testes isolados e
 ## 4. Estado da tarefa
 
 A publicação direta **foi solicitada**, mas **nenhuma implantação/SQL de produção foi executada por este plano**. O próximo ato operacional depende de confirmar os portões A e B, em especial o SHA real implantado no Coolify e um ponto de recuperação.
+
+
+## 5. Decisão explícita: sem backup (24/11/2026)
+
+O responsável autorizou prosseguir **sem backup** e **sem homologação**. Isso não cria cópia recuperável e não torna a implantação isenta de risco. Não será realizada restauração por este fluxo, pois não há cópia de segurança aprovada. A recuperação possível se limita ao rollback de aplicação, ao rollback automático do PostgreSQL antes do COMMIT em caso de erro transacional, e à avaliação de correções compensatórias depois do COMMIT — estas últimas exigem revisão específica e podem não recuperar dados.
+
+Foi preparada uma revisão restrita da migração com `SET LOCAL lock_timeout = '5s'`, `SET LOCAL statement_timeout = '30s'`, e `NOTIFY pgrst` dentro da transação, para evitar espera indefinida em bloqueio e impedir notificação fora da transação. Executar uma única vez, sem combinar com SQL legado do Call Center.
+
+**Sequência de publicação separada:**
+1. O preflight já foi encaminhado pelo responsável em dois resultados: estrutura do catálogo (conforme inventário) e cinco grants diretos `false`. Isso **não valida** automaticamente a existência das RPCs legadas de filas, o commit ativo do Coolify ou a capacidade de restauração.
+2. Ao obter CI verde para o SQL revisado, executar somente `docs/sql/editor_visual_fase1_criar_rascunho_20261124.sql` no Supabase self-hosted produtivo. Conferir que a consulta termina sem erro e `COMMIT` foi realizado.
+3. Executar `docs/sql/editor_visual_fase1_posflight_producao_20261124.sql` (somente leitura); exportar resultado. Se houver diferença, **não** continuar ao deploy.
+4. Confirmar revisão real da aplicação e dependências do banco para os dez commits que separam `e4ee559` de `main` antes de liberar código. Não aplicar `main` ou este PR automaticamente; manter PR em rascunho até aprovação das condições.
+5. Após deploy efetivo e aprovado, validar com sessão real de administrador e sessão real de gestor. Não criar rascunhos se a rota apresentar erro de banco.
+
+**Lembrete:** a instrução para executar SQL pertence ao responsável com acesso ao SQL Editor. Esta assistência não possui conexão autorizada ao Supabase self-hosted nem ao Coolify de produção.

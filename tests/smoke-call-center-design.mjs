@@ -130,8 +130,8 @@ try {
     const tme = page.getByRole('region', { name: 'TME de fila', exact: true });
     await tma.getByText('03:25', { exact: true }).waitFor();
     await tme.getByText('01:21', { exact: true }).waitFor();
-    assert.match(await tma.innerText(), /Média simples do TMA informado por 1 fila/);
-    assert.match(await tme.innerText(), /Média simples do TME informado por 1 fila/);
+    assert.match(await tma.innerText(), /Tempo médio de atendimento/);
+    assert.match(await tme.innerText(), /Tempo médio de espera/);
   });
   await check('one upper menu shows five dashboards after retiring ramal and loads only overview initially', async () => {
     assert.equal(await menu.getByRole('link').count(), 5);

@@ -1,6 +1,6 @@
 # Editor Visual — homologação da Fase 1 (criação de rascunhos)
 
-Data: 24/11/2026. Estado: **testes de PostgreSQL isolado concluídos; homologação real de Supabase/Auth/PostgREST ainda não executada**.
+Data: 24/11/2026. Estado: **testes de PostgreSQL isolado concluídos; opção de homologação dispensada pelo responsável; implantação em produção não autorizada**.
 
 ## Contexto
 
@@ -14,7 +14,7 @@ Executar os dois jobs do CI, incluindo `validar-sql-rascunhos`. O job de SQL car
 
 Os testes HTTP de `tests/smoke-dashboard-drafts.mjs` simulam Auth e PostgREST, sem usar o servidor real. **Ambos** precisam estar verdes. Isto não substitui o portão B.
 
-## Portão B — homologação real (dependência externa)
+## Plano de homologação originalmente recomendado (substituído pela decisão atual)
 
 Pré-requisitos: ambiente de homologação separado do banco de produção, conta administrativa do banco, acesso à aplicação de homologação, ponto de restauração testado e usuários de teste anon/admin/manager. Nenhum token deve ser compartilhado em mensagens, issues ou commits.
 
@@ -46,7 +46,7 @@ Pré-requisitos: ambiente de homologação separado do banco de produção, cont
 
 ## Estado e responsável pelo próximo passo
 
-A execução em PostgreSQL isolado e o CI podem ser acompanhados no PR #26. A homologação real depende de um **ambiente de teste do sistema** identificado e autorizado pelo responsável; nenhuma mudança no banco de produção é permitida antes da conclusão.
+A execução em PostgreSQL isolado e o CI podem ser acompanhados no PR #26. A opção de homologação foi dispensada conforme decisão registrada ao final. Nenhuma mudança no banco de produção está autorizada nesta etapa.
 
 ## Decisão de infraestrutura — 24/11/2026
 

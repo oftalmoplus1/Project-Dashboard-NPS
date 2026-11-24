@@ -59,3 +59,15 @@ O responsável confirmou que **existe somente o Supabase de produção**; não h
 4. Para uma futura implantação no único Supabase produtivo, exigir preflight atualizado, revisão de mudança, janela, backup recuperável e restauração testada, plano de retorno e autorização explícita. Não tratar CI isolado como substituto de backup ou de homologação real.
 
 **Não houve autorização para instalar SQL, migrar ou fazer deploy em produção.**
+
+## Decisão atualizada — sem homologação
+
+O responsável decidiu que **não deseja fazer homologação**. Esta decisão substitui a recomendação anterior de criar um ambiente temporário de homologação e elimina essa etapa do fluxo aprovado para o projeto.
+
+Procedimento atualizado:
+1. Prosseguir com desenvolvimento em branches/PRs isolados e testes automáticos (lint, typecheck, build, testes HTTP e PostgreSQL descartável no GitHub Actions).
+2. Revisar alterações em SQL, privilégios e compatibilidade, sempre preservando o estado produtivo até decisão de implantação.
+3. **Não executar migração nem deploy automaticamente**. Na futura publicação direta em produção, executar preflight de somente leitura, verificar um ponto de recuperação e plano de retorno, explicitar risco residual de não testar com Auth/PostgREST reais antes e obter autorização específica.
+4. Fazer mudanças produtivas pequenas e rastreáveis e validar após cada etapa. Se houver falha, interromper novas mudanças e avaliar rollback adequado.
+
+Aviso: testes automatizados não eliminam o risco de incompatibilidades específicas da configuração produtiva. A escolha de dispensar homologação não equivale a dispensar segurança, controle de mudanças ou autorização para instalar a migração.

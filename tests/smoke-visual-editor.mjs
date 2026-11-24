@@ -175,7 +175,7 @@ try {
   await card.click();
   const before = await card.getAttribute('style');
   const handle = card.getByRole('button', { name: 'Mover Chamadas por período' });
-  await handle.dragTo(page.getByTestId('editor-canvas'), { targetPosition: { x: 140, y: 520 } });
+  await handle.dragTo(page.getByTestId('editor-canvas'), { targetPosition: { x: 140, y: 340 } });
   const moved = await card.getAttribute('style');
   assert.notEqual(moved, before, 'drag should move the card in the grid');
 

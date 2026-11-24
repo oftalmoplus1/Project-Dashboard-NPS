@@ -6,6 +6,7 @@ import { Plus, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { callCenterTopicLabel } from '@/lib/call-center-design';
 import { isExistingDashboardCode } from '@/lib/dashboard-registry';
 import styles from './manage-dashboards.module.css';
+import ManageDashboardDrafts from './manage-dashboard-drafts';
 
 type Topic = { slug: string; nome: string };
 type InventoryDashboard = {
@@ -87,10 +88,9 @@ export default function ManageDashboards({ query, setQuery }: Props) {
      <button type="button" className="outline-button" disabled={loading} onClick={() => setRevision(value => value + 1)}>
       <RefreshCw size={16} aria-hidden="true" /> Atualizar
      </button>
-     <button type="button" className="primary-button" disabled
-      title="O editor visual requer fontes, permissões e publicação validadas.">
+     <a href="#criar-dashboard-personalizado" className="primary-button">
       <Plus size={16} aria-hidden="true" /> Novo dashboard
-     </button>
+     </a>
     </div>
    </div>
    {!loading && !error && <div className={styles.summary} aria-live="polite">
@@ -143,8 +143,8 @@ export default function ManageDashboards({ query, setQuery }: Props) {
       {filtered.length === 0 && <div className="no-results">Nenhum dashboard corresponde aos filtros informados.</div>}
      </div>}
   </section>
-  <p className={styles.note}>A lista contém as cinco visualizações implementadas do Call Center.
-   O inventário de dashboards personalizados será habilitado junto com o futuro editor visual.
-   Visualizações sem vínculo ainda não são publicadas automaticamente.</p>
+  <p className={styles.note}>A tabela acima preserva as cinco visualizações implementadas do Call Center.
+   Cadastros personalizados são apresentados separadamente até a conclusão do editor visual e da publicação segura.</p>
+  <ManageDashboardDrafts/>
  </>;
 }

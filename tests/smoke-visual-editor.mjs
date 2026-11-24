@@ -17,7 +17,11 @@ const drafts = [
 ];
 let catalogCalls = 0;
 let unexpectedQueries = 0;
-const upstream = createServer((req, res) => {
+let layoutReads = 0;
+let layoutWrites = 0;
+let savedRevision = 0;
+let savedBlocks = [];
+const upstream = createServer(async (req, res) => {
  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
  const send = (status, value) => {
   res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -40,6 +44,25 @@ const upstream = createServer((req, res) => {
   if (token !== 'Bearer visual-admin') return send(403, {});
   catalogCalls++;
   return send(200, drafts);
+ }
+ if (url.pathname === '/rest/v1/rpc/dashboard_editor_layout_ler') {
+  if (token !== 'Bearer visual-admin') return send(403, { code: '42501' });
+  layoutReads++;
+  return send(200, [{ revisao: savedRevision, blocos: savedBlocks }]);
+ }
+ if (url.pathname === '/rest/v1/rpc/dashboard_editor_layout_salvar') {
+  if (token !== 'Bearer visual-admin') return send(403, { code: '42501' });
+  let raw = '';
+  for await (const chunk of req) raw += chunk;
+  const body = JSON.parse(raw);
+  if (body.p_dashboard_id !== draftId || !Array.isArray(body.p_blocos)) {
+   return send(400, { code: '22023' });
+  }
+  if (body.p_revisao_esperada !== savedRevision) return send(409, { code: '40001' });
+  savedRevision++;
+  savedBlocks = body.p_blocos;
+  layoutWrites++;
+  return send(200, [{ revisao: savedRevision, blocos: savedBlocks }]);
  }
  unexpectedQueries++;
  return send(500, { error: 'Editor must not read operational data or write drafts' });
@@ -114,16 +137,16 @@ try {
   assert.equal((await page.goto(origin + '/editor/dashboards/00000000-0000-4000-8000-000000000077')).status(), 404);
   assert.equal((await page.goto(origin + '/editor/dashboards/not-a-uuid')).status(), 404);
  });
- await check('admin loads existing draft with 3 panels and explicit save restriction', async () => {
+ await check('admin loads existing draft with 3 panels and controlled autosave', async () => {
   assert.equal((await page.goto(editorUrl)).status(), 200);
   await page.getByTestId('visual-editor').waitFor();
   await page.getByRole('complementary', { name: 'Catálogo de componentes' }).waitFor();
   await page.getByRole('main').getByTestId('editor-canvas').waitFor();
   await page.getByRole('complementary', { name: 'Propriedades do componente' }).waitFor();
   assert.match(await page.getByRole('heading', { name: 'Dashboard de teste' }).innerText(), /Dashboard de teste/);
-  assert.equal(await page.getByRole('button', { name: 'Salvar', exact: true }).isDisabled(), true);
+  await page.getByRole('status').filter({ hasText: /Sem alterações pendentes/i }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Salvar agora' }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: 'Publicar', exact: true }).isDisabled(), true);
-  assert.match(await page.getByRole('status').first().innerText(), /ainda não há salvamento automático/i);
  });
  await check('catalog has all 8 requested component types', async () => {
   const catalog = page.getByRole('complementary', { name: 'Catálogo de componentes' });
@@ -203,19 +226,35 @@ try {
     && a.y < b.y + b.h && a.y + a.h > b.y, false, 'No card may overlap');
   }
  });
- await check('layout is not falsely persisted across reload', async () => {
-  page.once('dialog', dialog => dialog.accept());
+ await check('autosave is confirmed and persists after reload', async () => {
+  await page.getByRole('status').filter({ hasText: /Sem alterações pendentes/i }).waitFor({ timeout: 15000 });
+  assert.ok(layoutWrites > 0);
+  assert.equal(savedBlocks.length, 2);
   await page.reload();
-  await page.getByTestId('editor-empty').waitFor();
-  assert.equal(await page.getByTestId('editor-block').count(), 0);
+  await page.getByTestId('editor-block').first().waitFor();
+  assert.equal(await page.getByTestId('editor-block').count(), 2);
+  assert.ok(await page.getByTestId('editor-block').last().getByText('Chamadas por período').count());
+  assert.ok(layoutReads >= 2);
   assert.equal(unexpectedQueries, 0);
   assert.ok(catalogCalls > 0);
+ });
+ await check('external save causes 409 and prevents silent overwrites', async () => {
+  savedRevision++;
+  const writesBefore = layoutWrites;
+  const cards = page.getByTestId('editor-block');
+  await cards.last().click();
+  await page.getByLabel('Título do componente').fill('Alteração em conflito');
+  await page.getByRole('status').filter({ hasText: /Outro acesso alterou o rascunho/i }).waitFor({ timeout: 15000 });
+  assert.equal(layoutWrites, writesBefore);
+  assert.equal(await page.getByRole('button', { name: /^Cartão KPI/ }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Salvar agora' }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'Recarregar do servidor' }).count(), 1);
  });
  await check('no browser errors, no operational data requests', async () => {
   assert.deepEqual(errors, []);
   assert.equal(unexpectedQueries, 0);
  });
- console.log(`VISUAL_EDITOR_SMOKE_PASSED=${passed};mode=layout_only;server_saves=0`);
+ console.log(`VISUAL_EDITOR_SMOKE_PASSED=${passed};mode=autosave;server_saves=${layoutWrites}`);
 } catch (error) {
  console.error(logs);
  throw error;

@@ -22,8 +22,8 @@ const queue = (id, received, answered, over, under, waiting = 0) =>
 test('compute queue received, answered, both abandonment buckets and waiting', () => {
   const data = lib.parseQueueSnapshot([queue(2, 80, 50, 12, 5, 3), queue(1, 120, 80, 8, 2, 4)]);
   assert.deepEqual(data.rows, [
-    { id: 1, name: 'FILA-1', received: 120, answered: 80, abandoned: 10, waiting: 4 },
-    { id: 2, name: 'FILA-2', received: 80, answered: 50, abandoned: 17, waiting: 3 },
+    { id: 1, name: 'FILA-1', received: 120, answered: 80, abandoned: 10, waiting: 4, tma: null, tme: null },
+    { id: 2, name: 'FILA-2', received: 80, answered: 50, abandoned: 17, waiting: 3, tma: null, tme: null },
   ]);
   assert.equal(data.summary.total, 200);
   assert.equal(data.summary.answered, 130);
@@ -68,4 +68,50 @@ test('public response rejects wrong origin or mismatched summaries', () => {
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, summary: { ...raw.summary, total: 40 } }));
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, rows: [] }));
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, sourceUpdatedAt: null }));
+});
+
+test('average API-provided queue durations with equal queue weights, not call weights', () => {
+  const data = lib.parseQueueSnapshot([
+    { ...queue(1, 50, 30, 5, 3), tma:'00:02:00', tme:'00:01:00' },
+    { ...queue(2, 10, 1, 1, 0), tma:'00:04:00', tme:'00:03:00' },
+    { ...queue(3, 0, 0, 0, 0), tma:'00:00:00', tme:'00:00:00' },
+  ]);
+  assert.equal(data.summary.tmaSeconds, 180);
+  assert.equal(data.summary.tmeSeconds, 120);
+  assert.equal(data.summary.tmaQueues, 2);
+  assert.equal(data.summary.tmeQueues, 2);
+  assert.equal(data.rows[0].tma,'00:02:00');
+});
+
+test('zero time is a real observation when a queue has answered calls', () => {
+  const data = lib.parseQueueSnapshot([
+    { ...queue(1, 2, 1, 1, 0), tma:'00:00:00', tme:'00:00:00' },
+    { ...queue(2, 5, 4, 1, 0), tma:'00:00:30', tme:'00:01:00' },
+  ]);
+  assert.equal(data.summary.tmaSeconds,15);
+  assert.equal(data.summary.tmeSeconds,30);
+  assert.equal(data.summary.tmaQueues,2);
+  assert.equal(data.summary.tmeQueues,2);
+});
+
+test('missing and invalid durations never silently become zero', () => {
+  const raw = lib.parseQueueSnapshot([
+    { ...queue(1, 8, 6, 1, 1), tma:null, tme:null },
+    { ...queue(2, 0, 0, 0, 0), tma:'00:00:00', tme:'00:00:00' },
+  ]);
+  assert.equal(raw.summary.tmaSeconds,null);
+  assert.equal(raw.summary.tmeSeconds,null);
+  assert.equal(raw.summary.tmaQueues,0);
+  assert.equal(raw.summary.tmeQueues,0);
+  for (const invalid of ['00:99:00','bad','00:00:99',42,'-01:00:00']) {
+    assert.throws(()=>lib.parseQueueSnapshot([{...queue(1,5,4,0,1),tma:invalid,tme:'00:00:10'}]));
+  }
+});
+
+test('browser response rejects spoofed average, even when counters match', () => {
+  const raw = lib.parseQueueSnapshot([{...queue(1,12,10,1,0),tma:'00:01:10',tme:'00:00:30'}]);
+  const baseline = {...raw,source:'listar_filas',kind:'latest_snapshot',
+    consultedAt:'2026-11-24T10:00:00Z',sourceUpdatedAt:'2026-11-24T09:00:00Z'};
+  assert.equal(lib.parseQueueApiResponse(baseline).summary.tmaSeconds,70);
+  assert.throws(()=>lib.parseQueueApiResponse({...baseline,summary:{...raw.summary,tmaSeconds:1}}));
 });

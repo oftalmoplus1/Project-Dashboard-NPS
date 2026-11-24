@@ -31,7 +31,7 @@ const upstream = createServer(async (req, res) => {
       snapshotKind: 'latest_successful_batch', sourceUpdatedAt: timestamp,
       rows: [{ id: 1, name: 'FILA-TESTE', received: 120, answered: 80,
         abandon_less_30s: 2, abandon_more_30s: 8,
-        waiting_calls: 4, updated_at: timestamp }]
+        waiting_calls: 4, tma: '00:03:25', tme: '00:01:21', updated_at: timestamp }]
     });
   }
   if (!url.pathname.startsWith('/rest/v1/rpc/dashboard_chamadas_')) return send(404, {});
@@ -112,10 +112,13 @@ try {
   await check('abandonment formula ignores incompatible legacy percentage', async () => {
     assert.match(await page.getByRole('region', { name: 'Taxa de abandono', exact: true }).innerText(), /8,33%/);
   });
-  await check('duration switches to hh:mm:ss and TEF is never substituted by TET', async () => {
-    await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).waitFor();
-    const text = await page.getByRole('region', { name: 'TME de fila', exact: true }).innerText();
-    assert.match(text, /Aguardando validação SQL/); assert.ok(!text.includes('00:40'));
+  await check('Hoje uses the two API-provided queue averages, not CDR', async () => {
+    const tma = page.getByRole('region', { name: 'TMA', exact: true });
+    const tme = page.getByRole('region', { name: 'TME de fila', exact: true });
+    await tma.getByText('03:25', { exact: true }).waitFor();
+    await tme.getByText('01:21', { exact: true }).waitFor();
+    assert.match(await tma.innerText(), /Média simples do TMA informado por 1 fila/);
+    assert.match(await tme.innerText(), /Média simples do TME informado por 1 fila/);
   });
   await check('one upper menu shows five dashboards after retiring ramal and loads only overview initially', async () => {
     assert.equal(await menu.getByRole('link').count(), 5);
@@ -139,6 +142,11 @@ try {
   await page.getByLabel('Data inicial', { exact: true }).fill(today);
   await page.getByLabel('Data final', { exact: true }).fill(today);
   await page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).waitFor();
+  await check('custom historical filter keeps the existing CDR time calculations', async () => {
+    await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).waitFor();
+    const tme = await page.getByRole('region', { name: 'TME de fila', exact: true }).innerText();
+    assert.match(tme, /Aguardando validação SQL/);
+  });
   await check('call evolution columns use rounded visible corners', async () => {
     const columns = page.getByRole('region', { name: 'Evolução das chamadas recebidas' }).locator('[class*="barSegments"]');
     await columns.first().waitFor({ state: 'attached' });
@@ -367,7 +375,7 @@ try {
     mode = 'denied'; await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
     await page.getByRole('region', { name: 'Filtros de chamadas', exact: true }).getByRole('alert').filter({ hasText: 'Sessão expirada' }).waitFor();
     assert.equal(await totals.getByText('120', { exact: true }).count(), 0);
-    assert.equal(await page.getByRole('region', { name: 'TMA', exact: true }).getByText('01:01:30', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('region', { name: 'TMA', exact: true }).getByText('03:25', { exact: true }).count(), 0);
   });
   await check('no uncaught browser errors', async () => assert.deepEqual(pageErrors, []));
   console.log(`CALL_CENTER_BROWSER_PASSED=${passed}; fixtures=synthetic; production_validation=false`);

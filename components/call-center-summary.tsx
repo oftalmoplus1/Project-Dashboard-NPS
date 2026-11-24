@@ -8,7 +8,7 @@ type Summary = {
 };
 type Props = {
   summary: Summary | null; loading: boolean; partial: boolean;
-  times: { tma: number | null; tme: number | null; tefVerified: boolean } | null;
+  times: { tma: number | null; tme: number | null; waitKind: 'queue_tme' | 'tef' | 'tet_legacy'; tmaQueues?: number; tmeQueues?: number } | null;
   timeStatus: 'loading' | 'ready' | 'unavailable';
   sourceMode?: 'snapshot' | 'history';
 };
@@ -44,14 +44,22 @@ export default function CallCenterSummary({ summary, loading, partial, times, ti
       <section className={styles.card} aria-label="TMA">
         <div className={styles.cardHeader}><h3>TMA</h3><Headphones size={19} aria-hidden="true" /></div>
         <p className={`${styles.value} ${timeStatus === 'loading' ? styles.skeleton : ''}`}>{formatCallDuration(times?.tma)}</p>
-        <p className={styles.hint}>{timeStatus === 'unavailable' ? 'Consulta de tempos indisponível.' : timeStatus === 'loading' ? 'Consultando tempo de atendimento.' : times?.tma == null ? 'Sem amostras válidas de atendimento.' : 'Tempo médio de atendimento. Recebidas e efetuadas atendidas.'}</p>
+        <p className={styles.hint}>{timeStatus === 'unavailable' ? 'Consulta de tempos indisponível.' : timeStatus === 'loading' ? 'Consultando tempo de atendimento.' : sourceMode === 'snapshot' ?
+          (times?.tma == null ? 'Sem TMA válido nas filas com chamadas atendidas.' :
+          `Média simples do TMA informado por ${times.tmaQueues} ${times.tmaQueues === 1 ? 'fila' : 'filas'} com atendimento.`) :
+          times?.tma == null ? 'Sem amostras válidas de atendimento.' : 'Tempo médio de atendimento. Recebidas e efetuadas atendidas.'}</p>
       </section>
       <section className={styles.card} aria-label="TME de fila">
         <div className={styles.cardHeader}><h3>TME de fila</h3><Clock3 size={19} aria-hidden="true" /></div>
-        <p className={styles.value}>{times?.tefVerified ? formatCallDuration(times.tme) : '—'}</p>
-        {!times?.tefVerified && <span className={styles.badge}>Aguardando validação SQL</span>}
-        <p className={styles.hint}>{times?.tefVerified ? 'Média de TEF válido em recebidas atendidas, com fila informada.' :
-          'A função de espera em fila ainda não foi homologada. TET não substitui TEF.'}</p>
+        <p className={styles.value}>{times && times.waitKind !== 'tet_legacy' ? formatCallDuration(times.tme) : '—'}</p>
+        {sourceMode !== 'snapshot' && (!times || times.waitKind === 'tet_legacy') && <span className={styles.badge}>Aguardando validação SQL</span>}
+        <p className={styles.hint}>{sourceMode === 'snapshot' ?
+          (timeStatus === 'unavailable' ? 'Consulta de tempos das filas indisponível.' :
+           timeStatus === 'loading' ? 'Consultando tempos das filas.' :
+           times?.tme == null ? 'Sem TME válido nas filas com chamadas atendidas.' :
+           `Média simples do TME informado por ${times.tmeQueues} ${times.tmeQueues === 1 ? 'fila' : 'filas'} com atendimento.`) :
+           times?.waitKind === 'tef' ? 'Média de TEF válido em recebidas atendidas, com fila informada.' :
+           'A função de espera em fila ainda não foi homologada. TET não substitui TEF.'}</p>
       </section>
     </div>
     <details className={styles.details}>
@@ -60,10 +68,10 @@ export default function CallCenterSummary({ summary, loading, partial, times, ti
         <div><dt><PhoneMissed size={15} aria-hidden="true" /> Sem atendimento</dt><dd>{count(summary?.unanswered)}</dd></div>
         <div><dt><PhoneIncoming size={15} aria-hidden="true" /> Taxa de atendimento</dt><dd>{percent(summary?.answerRate)}</dd></div>
         <div><dt>Outras situações</dt><dd>{count(summary?.other)}</dd></div>
-        <div><dt>Espera total (TET legado)</dt><dd>{formatCallDuration(times && !times.tefVerified ? times.tme : null)}</dd></div>
+        <div><dt>Espera total (TET legado)</dt><dd>{formatCallDuration(times?.waitKind === 'tet_legacy' ? times.tme : null)}</dd></div>
       </dl>
       <p className={styles.hint}>Espera total é diferente de espera em fila. Tempos no formato mm:ss; a partir de uma hora, hh:mm:ss.
-        {sourceMode === 'snapshot' && ' Sem atendimento e outras situações não são fornecidas em listar_filas; TMA/TME continuam provenientes do relatório de chamadas.'}</p>
+        {sourceMode === 'snapshot' && ' Sem atendimento e outras situações não são fornecidas em listar_filas; TMA/TME são médias aritméticas entre filas com atendimentos, sem ponderação por volume.'}</p>
     </details>
   </div>;
 }

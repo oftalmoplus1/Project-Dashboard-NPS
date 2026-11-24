@@ -49,11 +49,68 @@ function isSource(value: unknown): value is Source {
   && source.avisos.every((item: unknown) => typeof item === 'string');
 }
 
+
+type QueuePreview = {
+ source: 'listar_filas';
+ kind: 'latest_snapshot';
+ finalidade: 'previa_administrativa';
+ consultedAt: string;
+ sourceUpdatedAt: string;
+ metrics: {
+  received: number;
+  answered: number;
+  abandoned: number;
+  waiting: number;
+  tmaSeconds: number | null;
+  tmeSeconds: number | null;
+  tmaQueues: number;
+  tmeQueues: number;
+ };
+ note: string;
+};
+
+function isQueuePreview(payload: unknown): payload is QueuePreview {
+ if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
+ const record = payload as Record<string, unknown>;
+ if (record.source !== 'listar_filas' || record.kind !== 'latest_snapshot'
+  || record.finalidade !== 'previa_administrativa'
+  || typeof record.note !== 'string'
+  || typeof record.consultedAt !== 'string' || !Number.isFinite(Date.parse(record.consultedAt))
+  || typeof record.sourceUpdatedAt !== 'string' || !Number.isFinite(Date.parse(record.sourceUpdatedAt))
+  || !record.metrics || typeof record.metrics !== 'object' || Array.isArray(record.metrics)) {
+  return false;
+ }
+ const m = record.metrics as Record<string, unknown>;
+ return ['received', 'answered', 'abandoned', 'waiting', 'tmaQueues', 'tmeQueues']
+  .every(key => typeof m[key] === 'number' && Number.isSafeInteger(m[key]) && m[key] >= 0)
+  && ['tmaSeconds', 'tmeSeconds'].every(key =>
+   m[key] === null || typeof m[key] === 'number' && Number.isFinite(m[key]) && m[key] >= 0);
+}
+
+function formatDuration(seconds: number | null): string {
+ if (seconds === null) return '—';
+ const s = Math.round(seconds);
+ const hours = Math.floor(s / 3600);
+ const minutes = Math.floor(s % 3600 / 60);
+ const rest = s % 60;
+ return hours ? [hours, minutes, rest].map(n => String(n).padStart(2, '0')).join(':')
+  : [minutes, rest].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+const formatter = new Intl.NumberFormat('pt-BR');
+function dateInBrazil(value: string): string {
+ return new Date(value).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+}
+
 export default function EditorSourceCatalog() {
  const [rows, setRows] = useState<Source[]>([]);
  const [revision, setRevision] = useState(0);
  const [loading, setLoading] = useState(true);
  const [error, setError] = useState('');
+ const [preview, setPreview] = useState<QueuePreview | null>(null);
+ const [previewLoading, setPreviewLoading] = useState(false);
+ const [previewError, setPreviewError] = useState('');
+
 
  useEffect(() => {
   const controller = new AbortController();
@@ -79,6 +136,24 @@ export default function EditorSourceCatalog() {
   void load();
   return () => controller.abort();
  }, [revision]);
+
+
+ async function previewQueue() {
+  if (previewLoading) return;
+  setPreview(null);
+  setPreviewError('');
+  setPreviewLoading(true);
+  try {
+   const response = await fetch('/api/catalogo/fontes-editor/listar-filas/previa', { cache: 'no-store' });
+   const payload: unknown = await response.json();
+   if (!response.ok || !isQueuePreview(payload)) throw new Error('Prévia inválida ou indisponível.');
+   setPreview(payload);
+  } catch {
+   setPreviewError('Não foi possível obter a última coleta validada. Tente novamente após verificar a fonte.');
+  } finally {
+   setPreviewLoading(false);
+  }
+ }
 
  return <>
   <div className="notice">
@@ -120,6 +195,31 @@ export default function EditorSourceCatalog() {
        <small>{candidate.observacao}</small>
       </div>)}
      </div>
+     {source.id === 'listar_filas' && <div className={styles.previewSection}>
+      <div className={styles.previewHeader}>
+       <div>
+        <h4>Prévia administrativa da última coleta</h4>
+        <p>Consulta existente e protegida, somente valores agregados. Não habilita dados para gráficos personalizados.</p>
+       </div>
+       <button type="button" className="outline-button" onClick={() => void previewQueue()} disabled={previewLoading || loading}>
+        <RefreshCw size={15} aria-hidden="true" /> {previewLoading ? 'Consultando...' : 'Consultar prévia'}
+       </button>
+      </div>
+      {previewLoading && <p role="status" className={styles.message}>Validando a coleta atual...</p>}
+      {previewError && <p role="alert" className={styles.error}>{previewError}</p>}
+      {preview && <div className={styles.previewData} aria-live="polite">
+       <div className={styles.previewMetrics}>
+        <div><span>Recebidas</span><strong>{formatter.format(preview.metrics.received)}</strong></div>
+        <div><span>Atendidas</span><strong>{formatter.format(preview.metrics.answered)}</strong></div>
+        <div><span>Abandonadas</span><strong>{formatter.format(preview.metrics.abandoned)}</strong></div>
+        <div><span>Em espera (soma das filas)</span><strong>{formatter.format(preview.metrics.waiting)}</strong></div>
+        <div><span>TMA · média entre {preview.metrics.tmaQueues} filas</span><strong>{formatDuration(preview.metrics.tmaSeconds)}</strong></div>
+        <div><span>TME · média entre {preview.metrics.tmeQueues} filas</span><strong>{formatDuration(preview.metrics.tmeSeconds)}</strong></div>
+       </div>
+       <p className={styles.previewFoot}>Última coleta: {dateInBrazil(preview.sourceUpdatedAt)} · Consulta: {dateInBrazil(preview.consultedAt)} (São Paulo)</p>
+       <p className={styles.previewFoot}>{preview.note}</p>
+      </div>}
+     </div>}
      <h4>Dimensões candidatas</h4>
      <p className={styles.dimensions}>{source.dimensoesCandidatas.map(item => item.nome).join(' · ')}</p>
      <div className={styles.cautions}>

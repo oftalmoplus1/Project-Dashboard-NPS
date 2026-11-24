@@ -170,6 +170,39 @@ try {
   assert.equal(await page.getByRole('complementary', { name: 'Catálogo de componentes' }).isVisible(), false);
   await page.getByRole('button', { name: 'Voltar à edição' }).click();
  });
+ await check('existing cards can be dragged without overlap and resized', async () => {
+  const card = page.getByTestId('editor-block').last();
+  await card.click();
+  const before = await card.getAttribute('style');
+  const handle = card.getByRole('button', { name: 'Mover Chamadas por período' });
+  await handle.dragTo(page.getByTestId('editor-canvas'), { targetPosition: { x: 140, y: 520 } });
+  const moved = await card.getAttribute('style');
+  assert.notEqual(moved, before, 'drag should move the card in the grid');
+
+  await page.getByRole('button', { name: 'Aumentar largura' }).click();
+  const widened = await card.getAttribute('style');
+  assert.notEqual(widened, moved, 'inspector should resize the card');
+
+  const resizeHandle = card.getByRole('button', { name: 'Redimensionar Chamadas por período' });
+  const frame = await resizeHandle.boundingBox();
+  assert.ok(frame);
+  await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(frame.x + frame.width / 2, frame.y + frame.height / 2 + 80, { steps: 5 });
+  await page.mouse.up();
+  const resized = await card.getAttribute('style');
+  assert.notEqual(resized, widened, 'pointer handle should resize the card height');
+
+  const frames = await page.getByTestId('editor-block').evaluateAll(items => items.map(item => {
+   const rect = item.getBoundingClientRect();
+   return { x: rect.x, y: rect.y, w: rect.width, h: rect.height };
+  }));
+  for (let i = 0; i < frames.length; i++) for (let j = i + 1; j < frames.length; j++) {
+   const a = frames[i], b = frames[j];
+   assert.equal(a.x < b.x + b.w && a.x + a.w > b.x
+    && a.y < b.y + b.h && a.y + a.h > b.y, false, 'No card may overlap');
+  }
+ });
  await check('layout is not falsely persisted across reload', async () => {
   page.once('dialog', dialog => dialog.accept());
   await page.reload();

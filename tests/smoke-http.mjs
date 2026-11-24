@@ -38,7 +38,7 @@ const upstream = createServer(async (req, res) => {
       const queue = { id: 1, name: 'Fila Teste',
         received: mode === 'queue-invalid' ? 10 : 120, answered: 80,
         abandon_more_30s: 8, abandon_less_30s: 2, waiting_calls: 4,
-        updated_at: updatedAt };
+        tma: '00:03:12', tme: '00:01:18', updated_at: updatedAt };
       return send(200, {
         snapshotKind: 'latest_successful_batch', sourceUpdatedAt: updatedAt,
         rows: mode === 'queue-empty' ? [] : mode === 'queue-mixed' ? [
@@ -147,12 +147,16 @@ try {
     assert.equal(body.kind, 'latest_snapshot');
     assert.ok(Number.isFinite(Date.parse(body.sourceUpdatedAt)));
     assert.deepEqual(body.rows, [
-      { id: 1, name: 'Fila Teste', received: 120, answered: 80, abandoned: 10, waiting: 4 },
+      { id: 1, name: 'Fila Teste', received: 120, answered: 80, abandoned: 10, waiting: 4, tma: '00:03:12', tme: '00:01:18' },
     ]);
     assert.equal(body.summary.total, 120);
     assert.equal(body.summary.answered, 80);
     assert.equal(body.summary.abandoned, 10);
     assert.equal(body.summary.unanswered, null);
+    assert.equal(body.summary.tmaSeconds, 192);
+    assert.equal(body.summary.tmeSeconds, 78);
+    assert.equal(body.summary.tmaQueues, 1);
+    assert.equal(body.summary.tmeQueues, 1);
     assert.ok(!JSON.stringify(body).includes('member'));
   });
   await check('queue RPC rejects empty or inconsistent snapshots without fabricating values', async () => {

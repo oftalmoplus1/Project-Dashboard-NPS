@@ -96,3 +96,24 @@ Evidências úteis do CSV:
 **Ainda não verificado:** Blocos 1 a 5B — existência e estado real do schema `dashboard_catalog`, constraints, chaves, RLS, grants, policies, assinaturas de RPCs. O arquivo recebido **não é evidência suficiente** para iniciar migração/CRUD de dashboards. Uma consulta consolidada de somente leitura poderá ser usada para exportar todos os blocos em um CSV único.
 
 Nenhum dado operacional, identificação pessoal ou segredo foi copiado do CSV para este documento: apenas metadados de campos.
+
+
+## 9. Inventário complementar recebido — segundo CSV 239 (7 blocos)
+
+Arquivo `Supabase Snippet Untitled query 239.csv` enviado posteriormente em 24/11/2026, agora com as colunas `bloco,resultado` e sete registros identificados como `01-ambiente` até `07-policies`. O upload reutiliza o nome do CSV anterior, mas **o conteúdo é diferente**.
+
+**Ambiente reportado:** PostgreSQL 15.8, banco `postgres`, executor `supabase_admin`. A informação identifica o ambiente reportado pelo export, mas não verifica automaticamente acesso de produção.
+
+**Estrutura confirmada:** seis tabelas em `dashboard_catalog` (`topicos`, `dashboards`, `topico_dashboards`, `acesso_topicos`, `acesso_dashboards`, `auditoria`), todas com RLS habilitada. `dashboards` possui `id` UUID, `nome`, `estado` (`rascunho`/`publicado`), `publicado_em`, `criado_por`, `criado_em`, `atualizado_em`, `codigo` nullable; **não possui `descricao`**. A constraint `dashboards_publicacao_consistente` impõe `rascunho` sem data e `publicado` com data. O identificador `codigo` é único quando preenchido.
+
+**Integridade:** 25 constraints e 12 índices reportados; a associação `topico_dashboards` tem PK composta e FKs para tópicos/dashboards. Os grants de dashboard exigem vínculos e grants de tópico, evitando acesso fora do contexto.
+
+**RPCs:** 14 funções reportadas, sete privadas `dashboard_catalog.*` com `SECURITY DEFINER` e sete wrappers `public.dashboard_catalogo_*` com `SECURITY INVOKER`. Todas negam `EXECUTE` a `anon` e permitem chamada a `authenticated`; autorização de administração é obrigação das próprias rotinas e APIs.
+
+**RLS/grants:** nas seis tabelas, `rls=true`; SELECT direto negado para `anon` e `authenticated`, e INSERT/UPDATE/DELETE direto negados para `authenticated`; o export retorna **zero policies** no catálogo. O acesso indireto por função SECURITY DEFINER exige revisão da validação interna de identidade e permissões: a configuração de grants por si só **não prova** que as rotinas estejam seguras contra escalada de privilégio.
+
+**Conclusão para Fase 1:** schema compatível com cadastro incremental e associação ao tópico, sem necessidade de criar nova tabela principal. Adicionar apenas `descricao` opcional (com limite) e novas RPCs admin-only, sem alterar RPCs existentes. Um novo PR separado (#26) prepara o SQL, a API e a UI. Nenhum SQL novo foi executado no ambiente self-hosted nesta conversa.
+
+**Risco de integração temporário:** `listar_dashboards_topico` atual retorna apenas `codigo` não nulo, de modo que dashboards personalizados (`codigo IS NULL`) estarão disponíveis na lista administrativa própria, mas não ainda no slider das visualizações legadas. A contagem de vínculos por tópico poderá incluir rascunhos que o slider ainda não mostra; corrigir a apresentação quando o renderizador dinâmico estiver pronto, sem liberar dados inadvertidamente.
+
+**Validação ainda exigida:** testar a nova migração em homologação no banco correto, confirmar ownership/permissões de SECURITY DEFINER, auditoria e atomicidade sob sessões reais admin/manager/anon, verificar ausência de grants laterais e obter ponto de recuperação antes de instalação.

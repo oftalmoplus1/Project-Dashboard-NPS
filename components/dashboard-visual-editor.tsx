@@ -315,7 +315,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
       {blocks.map(block => {
        const Icon = icons[block.kind];
        const active = selectedId === block.id && !preview;
-       return <article key={block.id}
+       return <article key={block.id} data-testid="editor-block"
         className={styles.block + (active ? ' ' + styles.blockSelected : '')}
         style={{ gridColumn: `${block.x + 1} / span ${block.w}`, gridRow: `${block.y + 1} / span ${block.h}` }}
         aria-label={block.title + ', componente ' + block.kind}

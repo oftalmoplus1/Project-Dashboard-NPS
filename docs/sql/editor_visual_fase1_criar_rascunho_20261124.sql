@@ -2,7 +2,9 @@
 -- PREPARADO, NAO INSTALADO. PostgreSQL 15 / Supabase self-hosted.
 --
 -- PRECONDICOES:
--- 1. Validar em homologacao; registrar backup/ponto de recuperacao e revisao.
+-- 1. O responsavel optou por implantacao direta SEM homologacao e SEM backup.
+--    RISCO ACEITO: em caso de problema apos COMMIT, nao ha restauracao garantida.
+--    Confirmar preflight e revisar o SQL completo antes de executar.
 -- 2. Confirmar o schema real com o CSV de inventario (24/11/2026).
 -- 3. Executar SOMENTE no banco self-hosted desta aplicacao.
 -- 4. Aplicar uma unica vez. Uma falha causa ROLLBACK desta transacao.
@@ -19,6 +21,9 @@
 --          IS NULL AS nova_rpc_ainda_nao_instalada;
 
 BEGIN;
+-- Evita manter lock exclusivo da tabela por tempo indefinido.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '30s';
 
 -- Apenas metadado descritivo do novo dashboard.
 ALTER TABLE dashboard_catalog.dashboards
@@ -29,7 +34,7 @@ ALTER TABLE dashboard_catalog.dashboards
   CHECK (descricao IS NULL OR pg_catalog.char_length(descricao) <= 500);
 
 -- SECURITY DEFINER fica no schema PRIVADO; nao recebe acesso de tabela ao cliente.
--- Conferir ownership da funcao em homologacao antes de executar em producao.
+-- Conferir ownership e privilegios do executor no preflight ANTES de executar.
 CREATE FUNCTION dashboard_catalog.criar_personalizado(
   p_nome text, p_descricao text, p_topico_slug text
 )
@@ -187,8 +192,9 @@ GRANT EXECUTE ON FUNCTION public.dashboard_catalogo_listar_personalizados()
   TO authenticated;
 
 -- RLS e grants das tabelas originais permanecem inalterados.
-COMMIT;
+-- A notificacao sera entregue apenas se a transacao inteira for confirmada.
 NOTIFY pgrst, 'reload schema';
+COMMIT;
 
 -- POS-FLIGHT SOMENTE LEITURA (executar separadamente):
 -- SELECT

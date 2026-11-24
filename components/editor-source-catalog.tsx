@@ -82,9 +82,14 @@ function isQueuePreview(payload: unknown): payload is QueuePreview {
  }
  const m = record.metrics as Record<string, unknown>;
  return ['received', 'answered', 'abandoned', 'waiting', 'tmaQueues', 'tmeQueues']
-  .every(key => typeof m[key] === 'number' && Number.isSafeInteger(m[key]) && m[key] >= 0)
-  && ['tmaSeconds', 'tmeSeconds'].every(key =>
-   m[key] === null || typeof m[key] === 'number' && Number.isFinite(m[key]) && m[key] >= 0);
+  .every(key => {
+   const value = m[key];
+   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  })
+  && ['tmaSeconds', 'tmeSeconds'].every(key => {
+   const value = m[key];
+   return value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  });
 }
 
 function formatDuration(seconds: number | null): string {
@@ -180,7 +185,7 @@ export default function EditorSourceCatalog() {
        <h3>{source.nome}</h3>
        <p>{source.descricao}</p>
       </div>
-      <span className={styles.status}>Consulta desabilitada</span>
+      <span className={styles.status}>Gráficos ainda desabilitados</span>
      </div>
      <div className={styles.metadata}>
       <div><strong>Relação inventariada</strong><code>{source.origem}</code></div>

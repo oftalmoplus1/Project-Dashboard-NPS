@@ -13,6 +13,7 @@ import {
  type VisualKind, type VisualSource,
 } from '@/lib/editor-visual-layout';
 import styles from './dashboard-visual-editor.module.css';
+import { useEditorDraftAutosave } from './use-editor-draft-autosave';
 
 type DashboardInfo = { id: string; nome: string; topicoNome: string };
 type Dragged = { mode: 'new'; kind: VisualKind } | { mode: 'move'; id: string };
@@ -75,8 +76,7 @@ function BlockContent({ block }: { block: VisualBlock }) {
 }
 
 /**
- * First operational UI slice only. All edits remain in React memory.
- * Deliberately no fake "autosaved" state and no mutations of Supabase.
+ * Fase 3B: config drafts only. Server confirms every save and never publishes.
  */
 export default function DashboardVisualEditor({ dashboard }: { dashboard: DashboardInfo }) {
  const [blocks, setBlocks] = useState<VisualBlock[]>([]);
@@ -92,20 +92,28 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  const blocksRef = useRef(blocks);
  blocksRef.current = blocks;
 
+ const autosave = useEditorDraftAutosave(dashboard.id, blocks, loaded => {
+  blocksRef.current = loaded;
+  setBlocks(loaded);
+  setPast([]);
+  setFuture([]);
+  setSelectedId(null);
+  nextLocalId.current = 0;
+ });
  const selected = useMemo(() => blocks.find(block => block.id === selectedId) ?? null, [blocks, selectedId]);
 
  useEffect(() => {
-  if (blocks.length === 0) return;
+  if (!autosave.dirty && autosave.status !== 'saving') return;
   const warn = (event: BeforeUnloadEvent) => {
    event.preventDefault();
    event.returnValue = '';
   };
   window.addEventListener('beforeunload', warn);
   return () => window.removeEventListener('beforeunload', warn);
- }, [blocks.length]);
+ }, [autosave.dirty, autosave.status]);
 
  function commit(next: VisualBlock[]) {
-  if (unchanged(blocksRef.current, next) || !validLayout(next)) return;
+  if (!autosave.editable || unchanged(blocksRef.current, next) || !validLayout(next)) return;
   const before = blocksRef.current;
   setPast(previous => [...previous, before].slice(-MAX_UNDO));
   blocksRef.current = next;
@@ -115,12 +123,13 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function add(kind: VisualKind, x?: number, y?: number) {
+  if (!autosave.editable || preview) return;
   if (blocksRef.current.length >= EDITOR_MAX_BLOCKS) {
    setFeedback('Limite de 40 componentes por dashboard nesta etapa.');
    return;
   }
   // Identificadores somente locais: nao dependem de Web Crypto/HTTPS.
-  const id = 'local-' + (++nextLocalId.current);
+  const id = 'local-' + Date.now() + '-' + (++nextLocalId.current);
   const next = addVisualBlock(blocksRef.current, kind, id, x, y);
   if (next.length === blocksRef.current.length) {
    setFeedback('Não há espaço disponível na grade para este componente.');
@@ -131,6 +140,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function revert() {
+  if (!autosave.editable) return;
   const previous = past.at(-1);
   if (!previous) return;
   const before = blocksRef.current;
@@ -142,6 +152,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function replay() {
+  if (!autosave.editable) return;
   const next = future[0];
   if (!next) return;
   const before = blocksRef.current;
@@ -163,7 +174,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
 
  function drop(event: DragEvent<HTMLDivElement>) {
   event.preventDefault();
-  if (preview || !dragged.current) return;
+  if (preview || !autosave.editable || !dragged.current) return;
   const location = gridCoordinate(event);
   const subject = dragged.current;
   dragged.current = null;
@@ -177,7 +188,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function startResize(event: PointerEvent<HTMLButtonElement>, block: VisualBlock) {
-  if (preview) return;
+  if (preview || !autosave.editable) return;
   event.preventDefault();
   event.stopPropagation();
   event.currentTarget.setPointerCapture(event.pointerId);
@@ -190,7 +201,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
 
  function resize(event: PointerEvent<HTMLButtonElement>) {
   const session = resizeSession.current;
-  if (!session || preview) return;
+  if (!session || preview || !autosave.editable) return;
   const pixelColumn = (canvasRef.current?.clientWidth ?? 1200) / EDITOR_COLUMNS;
   const w = session.startW + Math.round((event.clientX - session.startClientX) / pixelColumn);
   const h = session.startH + Math.round((event.clientY - session.startClientY) / GRID_ROW);
@@ -202,6 +213,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function finishResize() {
+  if (!autosave.editable) return;
   const session = resizeSession.current;
   if (!session) return;
   resizeSession.current = null;
@@ -211,18 +223,18 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function changeSelected(changes: Parameters<typeof setVisualBlock>[2]) {
-  if (!selected) return;
+  if (!selected || !autosave.editable) return;
   commit(setVisualBlock(blocksRef.current, selected.id, changes));
  }
 
  function removeSelected() {
-  if (!selected) return;
+  if (!selected || !autosave.editable) return;
   commit(blocksRef.current.filter(block => block.id !== selected.id));
   setSelectedId(null);
  }
 
  function resizeSelected(width: number, height: number) {
-  if (!selected) return;
+  if (!selected || !autosave.editable) return;
   const next = resizeVisualBlock(blocksRef.current, selected.id, width, height);
   if (unchanged(blocksRef.current, next)) {
    setFeedback('Não é possível redimensionar: verifique o espaço e os limites da grade.');
@@ -230,7 +242,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  function moveSelected(dx: number, dy: number) {
-  if (!selected) return;
+  if (!selected || !autosave.editable) return;
   commit(moveVisualBlock(blocksRef.current, selected.id, selected.x + dx, selected.y + dy));
  }
 
@@ -241,34 +253,45 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
    <div className={styles.breadcrumb}>
     <Link href="/dashboards" className={styles.back}
      onClick={event => {
-      if (blocks.length && !window.confirm('O layout ainda não pode ser salvo no servidor. Sair e descartar as alterações?')) {
+      if ((autosave.dirty || autosave.status === 'saving') && !window.confirm('Existem alterações não confirmadas no servidor. Sair e descartá-las?')) {
        event.preventDefault();
       }
      }} aria-label="Voltar para Gerenciar dashboards">
      <ArrowLeft size={19} />
     </Link>
     <div>
-     <span className={styles.eyebrow}>Editor Visual · Fase 3A</span>
+     <span className={styles.eyebrow}>Editor Visual · Fase 3B</span>
      <h1>{dashboard.nome}</h1>
      <p>Tópico: {dashboard.topicoNome} · Rascunho</p>
     </div>
    </div>
    <div className={styles.toolbar}>
-    <button type="button" className={styles.secondaryButton} onClick={revert} disabled={!past.length}
+    <button type="button" className={styles.secondaryButton} onClick={revert} disabled={!autosave.editable || !past.length}
      aria-label="Desfazer"><Undo2 size={17}/> <span>Desfazer</span></button>
-    <button type="button" className={styles.secondaryButton} onClick={replay} disabled={!future.length}
+    <button type="button" className={styles.secondaryButton} onClick={replay} disabled={!autosave.editable || !future.length}
      aria-label="Refazer"><Redo2 size={17}/> <span>Refazer</span></button>
     <button type="button" className={styles.secondaryButton} onClick={() => setPreview(value => !value)}
      aria-pressed={preview}><Eye size={17}/> <span>{preview ? 'Voltar à edição' : 'Pré-visualizar'}</span></button>
-    <button type="button" disabled title="O salvamento no Supabase será implementado em outra entrega."
-     className={styles.secondaryButton}><Save size={16}/> Salvar</button>
+    <button type="button" disabled={!autosave.editable || !autosave.dirty || autosave.status === 'saving'}
+     title="Solicitar gravação imediata do rascunho" onClick={autosave.saveNow}
+     className={styles.secondaryButton}><Save size={16}/> Salvar agora</button>
     <button type="button" disabled title="A publicação será liberada após persistência e revisão das permissões."
      className={styles.primaryButton}><ShieldCheck size={16}/> Publicar</button>
    </div>
   </header>
   <div className={styles.banner} role="status">
    <ShieldCheck size={18} aria-hidden="true"/>
-   <span><strong>Edição experimental:</strong> os componentes existem apenas nesta sessão. Ainda não há salvamento automático, consultas de dados nem publicação. Não utilize este layout como dashboard operacional.</span>
+   <span><strong>Rascunho do Editor Visual:</strong> {autosave.status === 'loading'
+    ? 'Consultando layout salvo...'
+    : autosave.status === 'saving' ? 'Salvando alterações no Supabase...'
+    : autosave.status === 'ready' ? (autosave.dirty ? 'Alterações pendentes de gravação.' : 'Sem alterações pendentes.')
+    : autosave.message} Consultas dos gráficos e publicação continuam desabilitadas.</span>
+   {(autosave.status === 'error' || autosave.status === 'conflict') && <button type="button"
+    className={styles.reloadButton} onClick={() => {
+     if (window.confirm('Recarregar o layout do servidor? Alterações não confirmadas nesta aba serão descartadas.')) {
+      window.location.reload();
+     }
+    }}>Recarregar do servidor</button>}
   </div>
   <div className={styles.workspace + (preview ? ' ' + styles.previewMode : '')}>
    <aside className={styles.catalog} aria-label="Catálogo de componentes">
@@ -279,7 +302,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
     <div className={styles.catalogItems}>
      {VISUAL_COMPONENTS.map(item => {
       const Icon = icons[item.kind];
-      return <button key={item.kind} type="button" draggable={!preview}
+      return <button key={item.kind} type="button" disabled={!autosave.editable || preview} draggable={autosave.editable && !preview}
        className={styles.catalogItem} onClick={() => add(item.kind)}
        onDragStart={event => {
         dragged.current = { mode: 'new', kind: item.kind };
@@ -321,10 +344,10 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
         className={styles.block + (active ? ' ' + styles.blockSelected : '')}
         style={{ gridColumn: `${block.x + 1} / span ${block.w}`, gridRow: `${block.y + 1} / span ${block.h}` }}
         aria-label={block.title + ', componente ' + block.kind}
-        onClick={() => { if (!preview) setSelectedId(block.id); }}>
+        onClick={() => { if (!preview && autosave.editable) setSelectedId(block.id); }}>
         <div className={styles.blockTop}>
-         {!preview && <button type="button" draggable
-          className={styles.dragHandle} title="Arrastar componente" aria-label={'Mover ' + block.title}
+         {!preview && <button type="button" draggable={autosave.editable}
+          disabled={!autosave.editable} className={styles.dragHandle} title="Arrastar componente" aria-label={'Mover ' + block.title}
           onDragStart={event => {
            dragged.current = { mode: 'move', id: block.id };
            event.dataTransfer.effectAllowed = 'move';
@@ -339,7 +362,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
          {!preview && <span className={styles.blockType}>{VISUAL_COMPONENTS.find(item => item.kind === block.kind)?.label}</span>}
         </div>
         <BlockContent block={block}/>
-        {!preview && active && <button type="button"
+        {!preview && active && autosave.editable && <button type="button"
          className={styles.resizeHandle}
          title="Arraste para redimensionar" aria-label={'Redimensionar ' + block.title}
          onPointerDown={event => startResize(event, block)}
@@ -363,7 +386,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
     {!selected ? <div className={styles.noSelection}>
      <LayoutDashboard size={27}/>
      <p>Selecione um cartão para alterar seu título, fonte, conteúdo ou posição.</p>
-    </div> : <div className={styles.inspectorBody}>
+    </div> : <fieldset disabled={!autosave.editable} className={styles.inspectorBody}>
      <div className={styles.control}>
       <label htmlFor="editor-title">Título do componente</label>
       <input id="editor-title" type="text" maxLength={80} value={selected.title}
@@ -427,7 +450,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
      <button type="button" className={styles.deleteButton} onClick={removeSelected}>
       <Trash2 size={16}/> Remover do layout local
      </button>
-    </div>}
+    </fieldset>}
    </aside>
   </div>
   <div className={styles.mobileNote}>A edição e o posicionamento estão disponíveis no computador. Esta visualização compacta não altera o layout.</div>

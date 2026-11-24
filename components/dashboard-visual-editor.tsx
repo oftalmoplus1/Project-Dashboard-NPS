@@ -105,7 +105,8 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
 
  function commit(next: VisualBlock[]) {
   if (unchanged(blocksRef.current, next) || !validLayout(next)) return;
-  setPast(previous => [...previous, blocksRef.current].slice(-MAX_UNDO));
+  const before = blocksRef.current;
+  setPast(previous => [...previous, before].slice(-MAX_UNDO));
   blocksRef.current = next;
   setBlocks(next);
   setFuture([]);
@@ -130,7 +131,8 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  function revert() {
   const previous = past.at(-1);
   if (!previous) return;
-  setFuture(next => [blocksRef.current, ...next].slice(0, MAX_UNDO));
+  const before = blocksRef.current;
+  setFuture(next => [before, ...next].slice(0, MAX_UNDO));
   blocksRef.current = previous;
   setBlocks(previous);
   setPast(next => next.slice(0, -1));
@@ -140,7 +142,8 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  function replay() {
   const next = future[0];
   if (!next) return;
-  setPast(previous => [...previous, blocksRef.current].slice(-MAX_UNDO));
+  const before = blocksRef.current;
+  setPast(previous => [...previous, before].slice(-MAX_UNDO));
   blocksRef.current = next;
   setBlocks(next);
   setFuture(previous => previous.slice(1));
@@ -263,7 +266,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
   </header>
   <div className={styles.banner} role="status">
    <ShieldCheck size={18} aria-hidden="true"/>
-   <span>**Edição experimental:** os componentes existem apenas nesta sessão. Ainda não há salvamento automático, consultas de dados nem publicação. Não utilize este layout como dashboard operacional.</span>
+   <span><strong>Edição experimental:</strong> os componentes existem apenas nesta sessão. Ainda não há salvamento automático, consultas de dados nem publicação. Não utilize este layout como dashboard operacional.</span>
   </div>
   <div className={styles.workspace + (preview ? ' ' + styles.previewMode : '')}>
    <aside className={styles.catalog} aria-label="Catálogo de componentes">

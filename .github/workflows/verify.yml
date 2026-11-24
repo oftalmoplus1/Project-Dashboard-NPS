@@ -34,6 +34,8 @@ jobs:
         run: node tests/smoke-http.mjs
       - name: Validar CRUD e inventario administrativo com Supabase simulado
         run: node tests/smoke-admin-catalog.mjs
+      - name: Verificar catalogo administrativo de fontes sem acesso a tabelas
+        run: node tests/smoke-editor-source-catalog.mjs
       - name: Reutilizar navegador da versao fixada
         uses: actions/cache@v4
         with:

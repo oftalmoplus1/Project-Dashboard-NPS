@@ -41,7 +41,7 @@ DECLARE
   v_usuario uuid := auth.uid();
   v_role text;
   v_nome text := pg_catalog.btrim(p_nome);
-  v_descricao text := pg_catalog.nullif(pg_catalog.btrim(pg_catalog.coalesce(p_descricao, '')), '');
+  v_descricao text := NULLIF(pg_catalog.btrim(COALESCE(p_descricao, '')), '');
   v_slug text := pg_catalog.btrim(p_topico_slug);
   v_topico uuid;
   v_dashboard uuid;
@@ -76,7 +76,7 @@ BEGIN
     RAISE EXCEPTION 'Topico nao encontrado' USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT pg_catalog.coalesce(pg_catalog.max(td.posicao) + 1, 0)
+  SELECT COALESCE(MAX(td.posicao) + 1, 0)
   INTO v_posicao
   FROM dashboard_catalog.topico_dashboards td
   WHERE td.topico_id = v_topico;

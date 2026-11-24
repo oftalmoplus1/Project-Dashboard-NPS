@@ -139,6 +139,27 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por hora', exact: true }).count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Chamadas por mês', exact: true }).count(), 0);
   });
+  await check('tabs match reference with rounded active button and teal underline', async () => {
+    const result = await nav('Visão geral').evaluate(element => {
+      const selected = getComputedStyle(element);
+      const menu = element.closest('nav');
+      const menuStyle = menu ? getComputedStyle(menu) : null;
+      return {
+        radius: parseFloat(selected.borderTopLeftRadius),
+        insetShadow: selected.boxShadow,
+        background: selected.backgroundColor,
+        borderColor: selected.borderTopColor,
+        menuBorder: menuStyle?.borderBottomWidth,
+        noWrap: menuStyle?.flexWrap,
+        count: menu?.querySelectorAll('a').length,
+      };
+    });
+    assert.ok(result.radius >= 8 && result.radius <= 10, 'active tab has rounded corners like the reference');
+    assert.match(result.insetShadow, /inset/, 'active tab has the bottom teal accent');
+    assert.equal(result.noWrap, 'nowrap', 'dashboard links remain in one horizontally scrollable row');
+    assert.equal(result.menuBorder, '1px', 'single subtle separator remains below the tabs');
+    assert.equal(result.count, 5, 'keep the five configured Call Center dashboards');
+  });
   await check('Hoje shows validated queue snapshot and protects detailed members', async () => {
     await page.getByRole('heading', { name: 'Filas — último estado disponível' }).waitFor();
     await page.getByRole('rowheader', { name: 'FILA-TESTE' }).waitFor();

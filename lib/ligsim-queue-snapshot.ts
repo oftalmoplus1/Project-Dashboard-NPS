@@ -41,7 +41,7 @@ function queueDuration(value: unknown, name: string): {raw: string | null; secon
   if (value == null || value === '') return {raw: null, seconds: null};
   if (typeof value !== 'string') throw new Error('Duracao invalida da fila: ' + name);
   const raw = value.trim();
-  const match = /^(\\d{2,4}):([0-5]\\d):([0-5]\\d)$/.exec(raw);
+  const match = /^(\d{2,4}):([0-5]\d):([0-5]\d)$/.exec(raw);
   if (!match) throw new Error('Duracao invalida da fila: ' + name);
   const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
   if (!Number.isSafeInteger(seconds)) throw new Error('Duracao de fila fora de limite');

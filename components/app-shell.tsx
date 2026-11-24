@@ -98,10 +98,11 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
   </aside>
   <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{heading}</strong></div><div className="top-actions"><span className="demo-pill">{callsLive?'Call Center':'Protótipo · Fase 1'}</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
    <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div>{!callsLive && <div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div>}</div>
-   {topic ? <nav className="category-slider" aria-label={`Dashboards do tópico ${heading}`}>
+   {topic ? <nav className={`${callCenterStyles.tabs} ${callCenterStyles.dashboardNav}`}
+      aria-label={`Dashboards do tópico ${heading}`}>
       {topic.dashboards.map(d=><Link
        key={d.codigo} href={`/meus-dashboards/${topic.slug}?dashboard=${d.codigo}`}
-       className={`category-slide ${topic.activeCode===d.codigo?'active':''}`}
+       className={callCenterStyles.tab}
        aria-current={topic.activeCode===d.codigo?'page':undefined}>{d.nome}</Link>)}
      </nav>
     :section==='chamadas' && <nav className={`${callCenterStyles.tabs} ${callCenterStyles.dashboardNav}`} aria-label="Dashboards do Call Center">

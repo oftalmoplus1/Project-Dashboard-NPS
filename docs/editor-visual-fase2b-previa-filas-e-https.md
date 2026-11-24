@@ -65,3 +65,17 @@ Passos recomendados para o administrador da infraestrutura:
 Referência: https://coolify.io/docs/core/networking/domains
 
 **Importante:** a decisão de não fazer homologação/backup foi registrada anteriormente. Esta fase modifica somente código em branch e não requer SQL. Nenhuma atualização de Coolify ou Supabase foi executada nesta entrega.
+
+## Decisão atual do responsável — HTTPS adiado
+
+O responsável decidiu **não configurar HTTPS nesta etapa**, deixando a melhoria para uma fase futura. Essa decisão substitui a recomendação anterior de concluir o HTTPS antes do avanço funcional.
+
+**Consequências e restrições:**
+- Não realizar agora mudanças em `Domains`, certificados, proxy ou `APP_ORIGIN` no Coolify.
+- É possível continuar desenvolvendo o Editor Visual em branches e executando testes automatizados sem modificar o acesso atual.
+- HTTP **não protege o tráfego contra interceptação ou alteração na rede**. Se o sistema é acessível pela Internet, login, sessão e dados em trânsito ficam expostos a riscos relevantes. Testes, permissões do Supabase, cookies `HttpOnly` e RLS não substituem criptografia de transporte.
+- Até instalar HTTPS, evitar ampliar o número de usuários ou o acesso externo e não transmitir dados sensíveis nesse endereço. Recomenda-se restringir o acesso à rede confiável/VPN enquanto o risco persistir.
+- Para eventual deploy funcional solicitado, explicitar novamente esse risco e conferir autorização, dados retornados e regressões, sem declarar o ambiente seguro.
+- A correção futura deverá configurar URL `https://`, certificado confiável, `APP_ORIGIN` idêntico ao domínio HTTPS, cookies `Secure`, redirecionamento HTTP e testes de autenticação.
+
+**Nenhuma mudança de infraestrutura, banco ou produção foi feita ao registrar essa decisão.**

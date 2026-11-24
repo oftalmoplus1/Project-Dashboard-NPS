@@ -9,6 +9,8 @@ export type QueueSnapshot = {
   answered: number;
   abandoned: number;
   waiting: number;
+  tma: string | null;
+  tme: string | null;
 };
 export type QueueSummary = {
   total: number;
@@ -18,6 +20,10 @@ export type QueueSummary = {
   other: null;
   answerRate: number | null;
   abandonRate: number | null;
+  tmaSeconds: number | null;
+  tmeSeconds: number | null;
+  tmaQueues: number;
+  tmeQueues: number;
 };
 
 function whole(value: unknown, key: string): number {
@@ -26,6 +32,22 @@ function whole(value: unknown, key: string): number {
   }
   return value;
 }
+/**
+ * LigSim queue averages are precomputed durations in HH:MM:SS, not raw
+ * call seconds. Parse strictly and never interpret a malformed value as zero.
+ * A missing value is not an observation (backwards compatible with old RPC).
+ */
+function queueDuration(value: unknown, name: string): {raw: string | null; seconds: number | null} {
+  if (value == null || value === '') return {raw: null, seconds: null};
+  if (typeof value !== 'string') throw new Error('Duracao invalida da fila: ' + name);
+  const raw = value.trim();
+  const match = /^(\\d{2,4}):([0-5]\\d):([0-5]\\d)$/.exec(raw);
+  if (!match) throw new Error('Duracao invalida da fila: ' + name);
+  const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+  if (!Number.isSafeInteger(seconds)) throw new Error('Duracao de fila fora de limite');
+  return { raw, seconds };
+}
+
 function addSafe(a: number, b: number): number {
   const sum = a + b;
   if (!Number.isSafeInteger(sum)) throw new Error('Soma de filas fora de limite');
@@ -55,11 +77,13 @@ export function parseQueueSnapshot(payload: unknown): { rows: QueueSnapshot[]; s
     const abandonOver = whole(raw.abandon_more_30s, 'abandon_more_30s');
     const abandonUnder = whole(raw.abandon_less_30s, 'abandon_less_30s');
     const waiting = whole(raw.waiting_calls, 'waiting_calls');
+    const tma = queueDuration(raw.tma, 'tma');
+    const tme = queueDuration(raw.tme, 'tme');
     const abandoned = addSafe(abandonOver, abandonUnder);
     if (answered > received || abandoned > received || addSafe(answered, abandoned) > received) {
       throw new Error('Totais de fila inconsistentes; verificacao na origem necessaria.');
     }
-    return { id, name: name.trim(), received, answered, abandoned, waiting };
+    return { id, name: name.trim(), received, answered, abandoned, waiting, tma: tma.raw, tme: tme.raw };
   });
   rows.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR') || a.id - b.id);
   const totals = rows.reduce((sum, row) => ({
@@ -67,8 +91,21 @@ export function parseQueueSnapshot(payload: unknown): { rows: QueueSnapshot[]; s
     answered: addSafe(sum.answered, row.answered),
     abandoned: addSafe(sum.abandoned, row.abandoned),
   }), { total: 0, answered: 0, abandoned: 0 });
+  const averages = rows.reduce((acc, row) => {
+    // An empty queue is not a zero-time call; it must not dilute the average.
+    if (row.answered <= 0) return acc;
+    const tma = queueDuration(row.tma, 'tma').seconds;
+    const tme = queueDuration(row.tme, 'tme').seconds;
+    if (tma !== null) { acc.tmaSum += tma; acc.tmaQueues++; }
+    if (tme !== null) { acc.tmeSum += tme; acc.tmeQueues++; }
+    return acc;
+  }, { tmaSum: 0, tmeSum: 0, tmaQueues: 0, tmeQueues: 0 });
   return { rows, summary: {
     ...totals,
+    tmaSeconds: averages.tmaQueues ? averages.tmaSum / averages.tmaQueues : null,
+    tmeSeconds: averages.tmeQueues ? averages.tmeSum / averages.tmeQueues : null,
+    tmaQueues: averages.tmaQueues,
+    tmeQueues: averages.tmeQueues,
     unanswered: null,
     other: null,
     answerRate: totals.total === 0 ? null : totals.answered / totals.total * 100,
@@ -98,6 +135,7 @@ export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]
       received: row.received, answered: row.answered,
       abandon_more_30s: row.abandoned, abandon_less_30s: 0,
       waiting_calls: row.waiting,
+      tma: row.tma, tme: row.tme,
     };
   });
   const result = parseQueueSnapshot(normalized);
@@ -105,8 +143,8 @@ export function parseQueueApiResponse(payload: unknown): { rows: QueueSnapshot[]
     throw new Error('Resumo de filas ausente');
   }
   const actual = obj.summary as Record<string, unknown>;
-  for (const key of ['total', 'answered', 'abandoned']) {
-    if (actual[key] !== result.summary[key as 'total' | 'answered' | 'abandoned']) {
+  for (const key of ['total', 'answered', 'abandoned', 'tmaQueues', 'tmeQueues', 'tmaSeconds', 'tmeSeconds']) {
+    if (actual[key] !== result.summary[key as keyof QueueSummary]) {
       throw new Error('Resumo de filas inconsistente');
     }
   }

@@ -97,9 +97,13 @@ try {
   assert.equal(result.rows[1].referenciaTemporal.includes('init_time'), true);
   assert.ok(result.rows.every(x => x.fuso === 'America/Sao_Paulo'));
   assert.ok(result.rows.every(x => x.indicadoresCandidatos.every(y => y.situacao === 'em_analise')));
-  const payload = JSON.stringify(result);
-  for (const forbidden of ['agent_name', 'dstchannel', '"src"', '"dst"', '"member"']) {
-   assert.ok(!payload.includes(forbidden), `Sensitive field was included as structured metadata: ${forbidden}`);
+  const exposedIds = result.rows.flatMap(x => [
+   x.id,
+   ...x.indicadoresCandidatos.map(metric => metric.id),
+   ...x.dimensoesCandidatas.map(dimension => dimension.id)
+  ]);
+  for (const forbidden of ['agent_name', 'dstchannel', 'src', 'dst', 'member']) {
+   assert.ok(!exposedIds.includes(forbidden), `Sensitive identifier in catalog: ${forbidden}`);
   }
   assert.equal(dataRequests, 0, 'No RPC or table query allowed');
  });

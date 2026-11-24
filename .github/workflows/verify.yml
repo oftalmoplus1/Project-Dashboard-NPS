@@ -60,3 +60,39 @@ jobs:
           path: artifacts/call-center-design
           if-no-files-found: ignore
           retention-days: 7
+
+  validar-sql-rascunhos:
+    # PostgreSQL isolado, com papeis/usuario sinteticos.
+    # Nenhuma credencial ou URL de Supabase de producao.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:15.8
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-only
+          POSTGRES_DB: dashboard_drafts_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dashboard_drafts_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGDATABASE: dashboard_drafts_ci
+      PGPASSWORD: ci-postgres-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar cliente PostgreSQL
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+      - name: Executar migracao no banco temporario e testar RBAC, rollback e concorrencia
+        run: bash tests/sql/run-dashboard-drafts.sh

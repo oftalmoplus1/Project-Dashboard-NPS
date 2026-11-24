@@ -59,6 +59,8 @@ export function useEditorDraftAutosave(
   const snapshot = blocks.map(block => ({ ...block }));
   const currentRevision = revision.current;
   const timer = window.setTimeout(async () => {
+   // Restore normal debounce after a forced manual save.
+   setForceSave(0);
    setStatus('saving');
    try {
     const response = await fetch(url, {

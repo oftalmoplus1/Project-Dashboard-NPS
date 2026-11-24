@@ -72,3 +72,36 @@ A fase 3A (PR #30) entregou a tela de tres paines com componentes em memoria. Es
 ## Exclusoes desta entrega
 
 Sem publicacao, sem compartilhamento de graficos, sem ACL contextual para consumidores, sem visualizacoes que consultam as tabelas `listar_filas`/`relatorio_chamadas`, sem historico persistente de versoes, sem alterações no Coolify. O responsavel adiou HTTPS: manter o alerta de risco de trafego nao criptografado e limitar a exposicao ate configuracao posterior.
+
+
+## Revisao de seguranca e preflight de producao (24/11/2026)
+
+A proposta `docs/sql/editor_visual_fase3b_layout_rascunho_PROPOSTA.sql` foi revisada estaticamente contra a estrutura documentada da Fase 1 e a API da Fase 3B. Foram confirmados:
+- Tabela nova no schema `dashboard_catalog` com RLS; nenhum GRANT de DML direto para `anon` ou `authenticated`.
+- Wrappers SQL no schema `public` com `SECURITY INVOKER`; funcao privilegiada somente em schema privado, com `search_path=''` e verificacao de `auth.users.raw_app_meta_data` a cada chamada.
+- Autorizacao apenas para `admin`, somente sobre dashboards pessoais `rascunho`, sem alterar `publicado`.
+- `SELECT FOR UPDATE` no cadastro do dashboard antes de salvar, revisao CAS e auditoria na mesma transacao.
+- Limites explicitos de tamanho, tipo de componente, posicionamento, fonte e metrica. Nao aceita SQL dinamico ou dados operacionais.
+- Dependencia de `dashboard_catalog.dashboards`, `dashboard_catalog.auditoria` e `auth.users` existente. O PostgreSQL isolado do CI nao substitui a verificacao do schema de producao.
+
+**Verificacao do ambiente real ainda pendente:** o Supabase self-hosted usado em producao nao esta disponivel pela conexao de ferramentas. Nenhuma consulta foi executada nele. A verificacao manual read-only e obrigatoria **antes** da migracao.
+
+### Operacao do administrador no Supabase self-hosted
+
+1. Abrir o **SQL Editor do Supabase self-hosted do Dashboard** (nao outro banco/projeto).
+2. Abrir o arquivo [`docs/sql/editor_visual_fase3b_preflight_PROPOSTA.sql`](./sql/editor_visual_fase3b_preflight_PROPOSTA.sql), copiar e executar apenas seu `SELECT`.
+3. Exportar a linha retornada como CSV ou enviar a captura mostrando os nomes das colunas.
+4. Confirmar que `banco` e `versao_postgres` correspondem ao ambiente esperado e que `preflight_compativel` e os demais booleanos sao `true`.
+5. Se alguma coluna retornar `false` ou houver erro: **parar e enviar o resultado**. Nao aplicar a migracao para esconder o erro.
+6. Com preflight revisado, decidir separadamente a instalacao em producao e, se autorizada, executar o arquivo completo de transacao uma vez; depois rodar o `posflight` somente leitura e testar uma sessao admin/manager de verdade. A instalacao nao foi autorizada ou feita nesta revisao.
+
+### Ordem de implantacao recomendada
+
+- Nao mesclar PR #31 sozinho sem sua dependencia da tela de editor do PR #30.
+- Confirmar schema via preflight; resolver divergencias.
+- Rever e autorizar SQL, executar somente no Supabase self-hosted correto e validar posflight/GRANTs.
+- Integrar codigo revisado via PR(s) e fazer deploy manual no Coolify.
+- Testar login admin, cadastro, F5, duas abas concorrentes, erro de rede e regressao do Call Center.
+- Manter `Publicar` desabilitado ate implementar seu fluxo e ACL; nunca confundir salvar layout com publicar dashboards.
+
+**Risco separado:** o HTTP sem TLS continua expondo transporte de credenciais e sessoes. O proprietario optou por adiar HTTPS; isso nao muda a obrigatoriedade de RBAC e testes.

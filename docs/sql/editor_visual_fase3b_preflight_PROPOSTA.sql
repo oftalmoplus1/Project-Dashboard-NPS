@@ -20,7 +20,11 @@ WITH schema_checks AS (
      AS dashboards_tem_pk,
    EXISTS (SELECT 1 FROM pg_catalog.pg_constraint c
      WHERE c.conrelid=to_regclass('dashboard_catalog.auditoria') AND c.contype='p')
-     AS auditoria_tem_pk
+     AS auditoria_tem_pk,
+   has_schema_privilege(current_user, 'dashboard_catalog', 'CREATE') AS executor_cria_catalogo,
+   has_schema_privilege(current_user, 'public', 'CREATE') AS executor_cria_rpc_publica,
+   has_table_privilege(current_user, 'auth.users', 'SELECT') AS executor_le_auth_users,
+   has_table_privilege(current_user, 'dashboard_catalog.auditoria', 'INSERT') AS executor_grava_auditoria
 ),
 column_checks AS (
  SELECT
@@ -63,6 +67,8 @@ SELECT current_database() AS banco, current_setting('server_version') AS versao_
   AND s.auth_uid_existe AND s.catalogo_fase1_existe AND s.editor_rpc_ler_ainda_ausente
   AND s.editor_rpc_salvar_ainda_ausente AND s.anon_existe AND s.authenticated_existe
   AND s.seis_tabelas_com_rls AND s.dashboards_tem_pk AND s.auditoria_tem_pk
+  AND s.executor_cria_catalogo AND s.executor_cria_rpc_publica
+  AND s.executor_le_auth_users AND s.executor_grava_auditoria
   AND c.dashboard_id_uuid AND c.dashboard_estado_texto AND c.dashboard_codigo_texto
   AND c.dashboard_publicacao_timestamptz AND c.auditoria_operador_uuid
   AND c.auditoria_acao_texto AND c.auditoria_tipo_texto AND c.auditoria_objeto_uuid

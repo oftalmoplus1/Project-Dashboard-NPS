@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import styles from './manage-dashboards.module.css';
 
@@ -83,7 +84,7 @@ export default function ManageDashboardDrafts() {
    }
    setNome('');
    setDescricao('');
-   setMessage('Rascunho criado e vinculado ao tópico. Nenhuma permissão foi concedida. A edição visual será habilitada em uma próxima fase.');
+   setMessage('Rascunho criado e vinculado ao tópico. Você pode abrir o editor experimental na lista abaixo; o layout ainda não é salvo no servidor.');
    await load();
    window.dispatchEvent(new Event('dashboard-topics-updated'));
   } catch {
@@ -141,11 +142,16 @@ export default function ManageDashboardDrafts() {
     {items.length === 0 ? <p className={styles.hint}>Nenhum rascunho personalizado cadastrado.</p>
      : <div className="table-wrap">
        <table>
-        <thead><tr><th scope="col">Dashboard</th><th scope="col">Tópico</th><th scope="col">Situação</th></tr></thead>
+        <thead><tr><th scope="col">Dashboard</th><th scope="col">Tópico</th><th scope="col">Situação</th><th scope="col">Editor</th></tr></thead>
         <tbody>{items.map(row => <tr key={row.id + '-' + row.topico_slug}>
          <td><strong>{row.nome}</strong>{row.descricao && <small className={styles.code}>{row.descricao}</small>}</td>
          <td>{row.topico_nome}</td>
          <td><span className="status draft">{row.estado === 'rascunho' ? 'Rascunho' : 'Publicado'}</span></td>
+         <td>{row.estado === 'rascunho'
+          ? <Link className={styles.topicLink} href={'/editor/dashboards/' + encodeURIComponent(row.id)}>
+             Abrir editor experimental
+            </Link>
+          : <span className={styles.hint}>Edição de publicados indisponível nesta fase</span>}</td>
         </tr>)}</tbody>
        </table>
       </div>}

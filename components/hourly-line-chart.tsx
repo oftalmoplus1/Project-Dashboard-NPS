@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { parseHourlyRows, sumCounts, type HourRow, type ChartMetric } from '@/lib/call-chart-data';
+import { parseHourlyRows, sumCounts, type HourRow } from '@/lib/call-chart-data';
 import ChartTooltip, { pointFromMouse, pointFromFocus, type TooltipPoint } from './chart-tooltip';
 
 const series = [
@@ -18,7 +18,6 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
   const [selected, setSelected] = useState<number | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [tooltipPoint, setTooltipPoint] = useState<TooltipPoint | null>(null);
-  const [meanMetric, setMeanMetric] = useState<ChartMetric>('total');
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -45,14 +44,14 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
   }, [start, end, key, refreshKey]);
   const rows = snapshot?.key === key ? snapshot.rows : null;
   const total = useMemo(() => rows ? sumCounts(rows) : null, [rows]);
-  const mean = total ? total[meanMetric] / 24 : null;
+  // Mantemos a linha de média de chamadas recebidas sem controles adicionais.
+  const mean = total ? total.total / 24 : null;
   const ceiling = Math.max(4, Math.ceil(Math.max(1, ...(rows?.map(row => row.total) ?? [])) / 4) * 4);
   const x = (hour: number) => 48 + hour / 23 * 842;
   const y = (count: number) => 263 - count / ceiling * 245;
   const highlight = hovered ?? selected;
   const activeRow = highlight === null ? null : rows?.[highlight];
   const selectedRow = selected === null ? null : rows?.[selected];
-  const meanLabel = series.find(item => item.key === meanMetric)!.label;
   return <section className="panel" style={{ padding: 20, marginBottom: 18 }}>
     <div className="panel-head"><div><h2>Chamadas por hora</h2><p>Volume acumulado em cada faixa de 1 hora no período selecionado; horário de Brasília.</p></div></div>
     {loading && <p role="status">Atualizando dados horários...</p>}
@@ -66,7 +65,7 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
             <text x={38} y={y(ceiling * index / 4) + 4} textAnchor="end" fontSize={11} fill="var(--muted)">{fmt(ceiling * index / 4)}</text>
           </g>)}
           {rows.filter(row => row.hora % 2 === 0 || row.hora === 23).map(row => <text key={row.hora} x={x(row.hora)} y={287} textAnchor="middle" fontSize={11} fill="var(--muted)">{row.hora}h</text>)}
-          {mean !== null && <line x1={48} x2={890} y1={y(mean)} y2={y(mean)} stroke="var(--text)" strokeWidth={1.5} strokeDasharray="7 5"><title>Média de {meanLabel.toLowerCase()}: {fmt(mean)}</title></line>}
+          {mean !== null && <line x1={48} x2={890} y1={y(mean)} y2={y(mean)} stroke="var(--text)" strokeWidth={1.5} strokeDasharray="7 5"><title>Média de recebidas: {fmt(mean)}</title></line>}
           {series.map(item => <g key={item.key}>
             <path d={rows.map((row, index) => `${index ? 'L' : 'M'}${x(row.hora)},${y(row[item.key])}`).join(' ')} fill="none" stroke={item.color} strokeWidth={2.5} />
             {rows.map(row => <circle key={row.hora} cx={x(row.hora)} cy={y(row[item.key])} r={highlight === row.hora ? 5 : 3} fill={item.color} />)}
@@ -93,15 +92,9 @@ export default function HourlyLineChart({ start, end, refreshKey }: { start: str
         ] : []}/>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18 }}>
         {series.map(item => <span key={item.key} style={{ fontSize: 12 }}><span aria-hidden="true" style={{ display: 'inline-block', width: 9, height: 9, marginRight: 6, background: item.color }} />{item.label}</span>)}
-        <label>Média de <select aria-label="Serie da media horaria" value={meanMetric} onChange={event => setMeanMetric(event.target.value as ChartMetric)}>
-          {series.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
-        </select></label>
-        <label>Detalhar hora <select aria-label="Detalhar hora" value={selected ?? ''} onChange={event => setSelected(event.target.value === '' ? null : Number(event.target.value))}>
-          <option value="">Selecione</option>{rows.map(row => <option key={row.hora} value={row.hora}>{row.hora}h</option>)}
-        </select></label>
       </div>
       {selectedRow && <p role="status">{fmt(selectedRow.total)} recebidas; {fmt(selectedRow.atendidas)} atendidas; {fmt(selectedRow.abandonadas)} abandonadas; {fmt(selectedRow.nao_atendidas)} sem atendimento; {fmt(selectedRow.outras)} outras.</p>}
-      <p style={{ fontSize: 12 }}>Linha tracejada: média de {meanLabel.toLowerCase()} entre as 24 faixas = {mean === null ? '—' : fmt(mean)}. Não representa média por dia nem tempo de espera. O dia atual pode estar parcial.</p>
+      <p style={{ fontSize: 12 }}>Linha tracejada: média de recebidas entre as 24 faixas = {mean === null ? '—' : fmt(mean)}. Não representa média por dia nem tempo de espera. O dia atual pode estar parcial.</p>
     </>}
   </section>;
 }

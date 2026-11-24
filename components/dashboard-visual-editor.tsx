@@ -291,7 +291,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
      if (window.confirm('Recarregar o layout do servidor? Alterações não confirmadas nesta aba serão descartadas.')) {
       window.location.reload();
      }
-    }}>Recarregar do servidor</button> 
+    }}>Recarregar do servidor</button>}
   </div>
   <div className={styles.workspace + (preview ? ' ' + styles.previewMode : '')}>
    <aside className={styles.catalog} aria-label="Catálogo de componentes">

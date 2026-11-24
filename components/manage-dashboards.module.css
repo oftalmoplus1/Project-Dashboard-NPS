@@ -14,3 +14,17 @@
 .note{font-size:11px;line-height:1.6;color:var(--muted);margin:0 4px 22px}
 @media(max-width:760px){.headerActions{margin-top:12px}.summary{gap:12px}.filters{width:100%}.filterLabel{margin-left:auto}}
 @media(prefers-reduced-motion:reduce){.topicLink{transition:none}}
+
+.draftContent{padding:18px 23px 24px;display:grid;gap:16px}
+.draftForm{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;max-width:640px}
+.draftForm label{font-size:12px;font-weight:600;color:var(--text)}
+.draftForm input,.draftForm textarea{min-height:38px;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--text);font:inherit;font-size:13px;padding:10px 12px;width:100%}
+.draftForm textarea{resize:vertical}
+.draftForm input:focus-visible,.draftForm textarea:focus-visible,.draftForm select:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.draftForm button{justify-self:start}
+.draftList{display:grid;gap:12px}
+.draftList h3{font-size:15px;margin:0}
+.hint{font-size:12px;color:var(--muted);line-height:1.6;margin:0}
+.errorInline{padding:12px 14px;border-radius:9px;background:rgba(189,41,53,.07);color:#bd2935;margin:0;font-size:12px}
+.successInline{padding:12px 14px;border:1px solid var(--border);border-radius:9px;margin:0;font-size:12px;color:var(--text)}
+@media(max-width:760px){.draftContent{padding:16px}.draftForm button{justify-self:stretch}}

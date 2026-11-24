@@ -1,0 +1,119 @@
+# Editor Visual — Fase 0: auditoria técnica e contrato da primeira implementação
+
+Data: 24/11/2026.
+Status: **auditoria estática do repositório concluída; inventário do Supabase self-hosted pendente de resultado real**.
+Escopo deste PR: documentação + SQL estritamente de leitura. Não altera aplicação, banco, permissões nem deploy.
+
+## 1. Dependência funcional
+
+A especificação do MVP está registrada na proposta [PR #24](https://github.com/oftalmoplus1/Project-Dashboard-NPS/pull/24) (ainda não pressuposta como aprovada ou mesclada).
+O objetivo da primeira implementação será criar um dashboard personalizado em **rascunho**, associado a um tópico, com administração exclusiva, sem liberar acesso de leitura a outros perfis.
+
+## 2. Achados verificados no código do branch `main`
+
+| Componente | Estado observado | Impacto para o editor |
+| --- | --- | --- |
+| `dashboard_catalog.dashboards` (DDL versionado) | Campos `id`, `nome`, `estado`, `criado_por`, `publicado_em` e timestamps; migração posterior adiciona `codigo` nulo permitido | Base aproveitável para rascunhos, sujeito a inventário real. Ainda não há `descricao` confirmada. |
+| `dashboard_catalog.topico_dashboards` (DDL versionado) | Relação N:N com posição de exibição e autoria | Reutilizar para associar rascunho ao tópico sem copiar dados operacionais. |
+| `dashboard_catalog.auditoria` (DDL versionado) | Eventos administrativos com operador, alvo e contexto | Reutilizar para registrar criação/publicação, respeitando segurança e retenção. |
+| `app/api/catalogo/topicos/route.ts` | Sessão obrigatória, validação da origem no POST, checagem de administrador, RPC com token do usuário | Padrão reutilizável para API administrativa de cadastro. |
+| `components/manage-dashboards.tsx` | Botão `Novo dashboard` desabilitado; lista validada apenas para códigos existentes | Necessita fluxo de criação e suporte a itens dinâmicos; não habilitar botão antes da API funcionar. |
+| `lib/dashboard-registry.ts` | Lista fechada de cinco códigos; `isDashboardItem` rejeita quaisquer outros | Novos dashboards exigem contrato tipado separado, preservando renderizadores legados. |
+| `app/api/catalogo/dashboards/route.ts` | `GET` monta lista apenas a partir da lista fechada e falha se receber código desconhecido | Precisa passar a listar corretamente dashboards personalizados, sem falsos positivos. |
+| `dashboard_catalog.listar_dashboards_topico` (SQL versionado) | Filtra `d.codigo IS NOT NULL` e retorna apenas código/nome/estado/posição | Rascunhos personalizados com `codigo` nulo ficariam invisíveis nesse contrato; criar novo contrato antes de expô-los. |
+| `app/meus-dashboards/[slug]/page.tsx` | Recusa gestores; seleciona apenas `existingDashboards` | Criar novo renderizador configurável e autorização contextual antes de liberar outro perfil. |
+| `components/app-shell.tsx` | Slider e conteúdo ligados ao `CallCenterView` ou `SectionContent` existente | Separar navegação/estrutura do shell do conteúdo configurável. |
+| `lib/server/verify-supabase-user.ts` | Interpreta apenas `admin` e `manager` de `app_metadata` | Perfil `user` deve ser tratado somente quando autorização contextual do restante do sistema estiver pronta. |
+
+**Limite importante:** a existência de arquivos SQL no GitHub **não prova que foram instalados** no banco self-hosted. O banco cloud vinculado a ferramentas de terceiros não é automaticamente o banco operacional desta aplicação.
+
+## 3. Riscos de segurança e compatibilidade
+
+1. **Não substituir a lista fechada de renderizadores legados por uma lista permissiva** sem validar a origem e o tipo do dashboard. Usar um discriminador explícito entre `legado` e `personalizado`, escolhido após o inventário.
+2. Evitar que um dashboard ainda em rascunho seja tratado como `publicado` ou associado a grants automáticos.
+3. Nenhuma escrita em `dashboard_catalog` deve depender apenas da role no frontend; verificar admin no servidor e novamente na RPC. Seguir `app_metadata` atual do Auth e controle transacional.
+4. Os novos endpoints não podem tornar dados de `listar_filas` ou `relatorio_chamadas` acessíveis por consulta direta fora do tópico/dashboard autorizado.
+5. `listar_filas` representa último snapshot, não uma série histórica. Não gerar histórico por inferência.
+6. Não reaplicar scripts de estrutura antigos em produção; inventariar assinaturas atuais, constraints, RLS, grants e dependências primeiro.
+7. Não habilitar visualização de dashboards personalizados por gestores antes de integrar integralmente ACL contextual em todas as APIs relevantes.
+8. Há migrações de funcionalidades existentes que podem ainda depender de execução manual no self-hosted; não inferir presença apenas pelo status de commits.
+
+## 4. Inventário que falta executar
+
+Arquivo: `docs/sql/editor_visual_inventario_selfhosted_20261124.sql`.
+
+Executar no **SQL Editor do Supabase self-hosted da aplicação**, em modo somente leitura, exportando cada bloco. O roteiro consulta apenas:
+- existência dos objetos e das RPCs administrativas;
+- estrutura de tabelas, tipos, nulabilidade, constraints e índices;
+- configuração de RLS, grants e policies;
+- assinaturas e visibilidade das funções, sem seus corpos;
+- colunas (não registros) das fontes `listar_filas` e `relatorio_chamadas`.
+
+Não encaminhar tokens, senhas, conteúdo de `auth.users`, IDs de usuários ou linhas operacionais. Se um bloco falhar, relatar o erro; não executar reparos por tentativa.
+
+## 5. Contrato proposto para a Fase 1 (depende da validação do inventário)
+
+**Interação:** botão `Novo dashboard` -> formulário com nome, descrição opcional e tópico existente -> `Criar rascunho` -> dashboard incluído na lista administrativa e associado ao tópico. A criação não concede acesso a outros usuários e não abre renderizador de gráfico inexistente.
+
+**API prevista:** `POST /api/catalogo/dashboards` com JSON estrito e validação de `nome` (1–120 caracteres após trim), `descricao` opcional com tamanho limitado e `topico_slug` válido. Retorna ID estável (UUID) e estado `rascunho` após confirmação da escrita. Esta rota já possui GET; adicionar POST sem quebrar leitura existente.
+
+**RPC prevista:** uma operação transacional, admin-only, que valida sessão/role no Auth e tópico existente, cadastra dashboard personalizado, vincula-o ao tópico, registra auditoria e retorna ID. Falha integral, sem cadastro órfão. Preservar nomes/assinaturas das RPCs existentes e usar nova função separada, evitando mudanças inesperadas.
+
+**Separação de identidade:** renderizadores legados continuam sendo identificados por `codigo`; dashboards personalizados devem ter ID persistente próprio e tipo reconhecível. Detalhes de colunas/constraints dependem do estado real do banco.
+
+**Contrato de leitura:** separar o inventário administrativo (inclui rascunhos) da navegação publicada/autorizada por contexto; adaptar validações TypeScript sem aceitar itens arbitrários. Não apresentar rascunho para consumidores sem permissão.
+
+**Validações antes de habilitar botão:** testar admin autenticado (201 e auditoria), manager (403), anônimo (401), origem inválida (403), corpo inválido (400/415), tópico inexistente (falha segura), banco/RPC ausente (503), dupla submissão e falha intermediária transacional.
+
+## 6. Sequência recomendada
+
+1. **Agora:** executar somente o inventário real e confrontar os resultados com o DDL versionado.
+2. Preparar migração incremental isolada do catálogo (nunca tocar nas fontes operacionais), com preflight, estratégia de recuperação e testes em homologação.
+3. Implementar RPC e API de `Criar rascunho` com testes de permissão/concorrência.
+4. Implementar formulário administrativo e lista com dashboards personalizados, habilitando `Novo dashboard` **somente** quando o backend estiver operacional.
+5. Acrescentar editor visual, fontes seguras, publicação e autorização contextual conforme PR #24, em PRs pequenos e testados.
+
+## 7. Estado desta entrega
+
+- Revisão do código versionado: **concluída**.
+- SQL de inventário só leitura: **preparado no GitHub**, sem execução externa.
+- Schema real de produção: **não verificado nesta sessão**; depende dos resultados do SQL no self-hosted correto.
+- Migrations de criação de rascunhos: **não geradas nem executadas**, até confirmação do schema.
+- Código Next.js, banco de produção, integrações, CI/deploy: **inalterados nesta etapa**.
+
+
+## 8. Resultado parcial do inventário recebido — CSV 239
+
+O arquivo `Supabase Snippet Untitled query 239.csv`, enviado pelo responsável em 24/11/2026, corresponde **somente ao Bloco 6 (metadados das fontes)**. Possui 44 linhas: 23 colunas em `public.listar_filas` e 21 colunas em `public.relatorio_chamadas`. Ambas aparecem como tabelas comuns (`relkind='r'`).
+
+Evidências úteis do CSV:
+- `listar_filas`: `id integer NOT NULL`, `name text NOT NULL`, `received smallint`, `answered smallint`, `waiting_calls smallint`, `abandon_more_30s smallint`, `abandon_less_30s smallint`, `tma time without time zone NOT NULL`, `tme time without time zone NOT NULL`, `updated_at timestamptz`. `member text[] NOT NULL` existe, mas **não deve ser disponibilizado** automaticamente no catálogo de métricas.
+- `relatorio_chamadas`: `id integer NOT NULL`, `init_time timestamptz`, `final_time timestamptz`, `disposition text NOT NULL`, `call_direction text NOT NULL`, `ta smallint`, `tet smallint`, `queuename text`, `updated_at timestamptz`. Campos `src`, `dst`, `agent_name` e `dstchannel` exigem avaliação de privacidade; **não autorizar acesso livre** pelo editor.
+- Durações `tma`/`tme` em `listar_filas` usam o tipo PostgreSQL `time without time zone`, mas semanticamente representam durações. Consultas devem tratá-las como tal; evite operações arbitrárias sobre o tipo temporal.
+- O campo `updated_at` de `listar_filas` marca estado da coleta, não transforma a tabela mutável em histórico.
+- Colunas de métricas que aceitam `NULL` devem ter semântica de ausência distinta de zero; operações aritméticas dependem de homologação, especialmente taxas e médias.
+
+**Ainda não verificado:** Blocos 1 a 5B — existência e estado real do schema `dashboard_catalog`, constraints, chaves, RLS, grants, policies, assinaturas de RPCs. O arquivo recebido **não é evidência suficiente** para iniciar migração/CRUD de dashboards. Uma consulta consolidada de somente leitura poderá ser usada para exportar todos os blocos em um CSV único.
+
+Nenhum dado operacional, identificação pessoal ou segredo foi copiado do CSV para este documento: apenas metadados de campos.
+
+
+## 9. Inventário complementar recebido — segundo CSV 239 (7 blocos)
+
+Arquivo `Supabase Snippet Untitled query 239.csv` enviado posteriormente em 24/11/2026, agora com as colunas `bloco,resultado` e sete registros identificados como `01-ambiente` até `07-policies`. O upload reutiliza o nome do CSV anterior, mas **o conteúdo é diferente**.
+
+**Ambiente reportado:** PostgreSQL 15.8, banco `postgres`, executor `supabase_admin`. A informação identifica o ambiente reportado pelo export, mas não verifica automaticamente acesso de produção.
+
+**Estrutura confirmada:** seis tabelas em `dashboard_catalog` (`topicos`, `dashboards`, `topico_dashboards`, `acesso_topicos`, `acesso_dashboards`, `auditoria`), todas com RLS habilitada. `dashboards` possui `id` UUID, `nome`, `estado` (`rascunho`/`publicado`), `publicado_em`, `criado_por`, `criado_em`, `atualizado_em`, `codigo` nullable; **não possui `descricao`**. A constraint `dashboards_publicacao_consistente` impõe `rascunho` sem data e `publicado` com data. O identificador `codigo` é único quando preenchido.
+
+**Integridade:** 25 constraints e 12 índices reportados; a associação `topico_dashboards` tem PK composta e FKs para tópicos/dashboards. Os grants de dashboard exigem vínculos e grants de tópico, evitando acesso fora do contexto.
+
+**RPCs:** 14 funções reportadas, sete privadas `dashboard_catalog.*` com `SECURITY DEFINER` e sete wrappers `public.dashboard_catalogo_*` com `SECURITY INVOKER`. Todas negam `EXECUTE` a `anon` e permitem chamada a `authenticated`; autorização de administração é obrigação das próprias rotinas e APIs.
+
+**RLS/grants:** nas seis tabelas, `rls=true`; SELECT direto negado para `anon` e `authenticated`, e INSERT/UPDATE/DELETE direto negados para `authenticated`; o export retorna **zero policies** no catálogo. O acesso indireto por função SECURITY DEFINER exige revisão da validação interna de identidade e permissões: a configuração de grants por si só **não prova** que as rotinas estejam seguras contra escalada de privilégio.
+
+**Conclusão para Fase 1:** schema compatível com cadastro incremental e associação ao tópico, sem necessidade de criar nova tabela principal. Adicionar apenas `descricao` opcional (com limite) e novas RPCs admin-only, sem alterar RPCs existentes. Um novo PR separado (#26) prepara o SQL, a API e a UI. Nenhum SQL novo foi executado no ambiente self-hosted nesta conversa.
+
+**Risco de integração temporário:** `listar_dashboards_topico` atual retorna apenas `codigo` não nulo, de modo que dashboards personalizados (`codigo IS NULL`) estarão disponíveis na lista administrativa própria, mas não ainda no slider das visualizações legadas. A contagem de vínculos por tópico poderá incluir rascunhos que o slider ainda não mostra; corrigir a apresentação quando o renderizador dinâmico estiver pronto, sem liberar dados inadvertidamente.
+
+**Validação ainda exigida:** testar a nova migração em homologação no banco correto, confirmar ownership/permissões de SECURITY DEFINER, auditoria e atomicidade sob sessões reais admin/manager/anon, verificar ausência de grants laterais e obter ponto de recuperação antes de instalação.

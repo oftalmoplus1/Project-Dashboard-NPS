@@ -143,7 +143,7 @@ BEGIN
   v_ids := pg_catalog.array_append(v_ids, v_id);
   FOR v_key IN SELECT pg_catalog.unnest(ARRAY['x','y','w','h']) LOOP
    IF pg_catalog.jsonb_typeof(v_item->v_key) IS DISTINCT FROM 'number'
-     OR COALESCE((v_item->>v_key) ~ '^[0-9]{1,2}, false) IS NOT TRUE THEN
+     OR COALESCE((v_item->>v_key) ~ '^[0-9]{1,2}$', false) IS NOT TRUE THEN
     RAISE EXCEPTION 'Coordenada invalida' USING ERRCODE = '22023';
    END IF;
   END LOOP;

@@ -99,7 +99,7 @@ try {
   const direct = await request('/api/monitoramento/' + id, 'monitor-manager');
   assert.equal(direct.status, 404);
   assert.equal((await request('/monitoramento', 'monitor-manager')).status, 200);
-  assert.equal((await request('/monitoramento/' + id, 'monitor-manager')).status, 200);
+  assert.equal((await request('/monitoramento/' + id, 'monitor-manager')).status, 404);
  });
  await check('admin can read published snapshot and nothing else', async () => {
   const list = await request('/api/monitoramento', 'monitor-admin');
@@ -118,6 +118,7 @@ try {
   granted = true;
   assert.equal((await (await request('/api/monitoramento', 'monitor-manager')).json()).rows.length, 1);
   assert.equal((await request('/api/monitoramento/' + id, 'monitor-manager')).status, 200);
+  assert.equal((await request('/monitoramento/' + id, 'monitor-manager')).status, 200);
  });
  await check('revoke blocks direct access on next server check', async () => {
   granted = false;

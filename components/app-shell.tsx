@@ -67,7 +67,14 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
  return <div className={`app-root ${sidebarCollapsed?'sidebar-collapsed':''} ${callsLive?callCenterStyles.shell:''}`}>
   {mobileOpen && <button className="backdrop" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`} aria-label="Navegação principal">
-   <div className="brand"><div className="brand-mark"><Image src="/logo-empresa.png" width={48} height={48} alt="Logomarca da empresa" priority/></div><div className="brand-copy"><strong>dashboard<span>_tools</span></strong><small>Business intelligence</small></div><button type="button" className="icon-button desktop-collapse" title={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-label={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-expanded={!sidebarCollapsed} onClick={()=>setSidebarCollapsed(v=>!v)}>{sidebarCollapsed?<PanelLeftOpen size={19}/>:<PanelLeftClose size={19}/>}</button><button className="mobile-close icon-button" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}><X size={18}/></button></div>
+   <div className="brand">{sidebarCollapsed
+    ? <button type="button" className="brand-mark brand-logo-toggle"
+        title="Expandir menu lateral" aria-label="Expandir menu lateral" aria-expanded={false}
+        onClick={()=>setSidebarCollapsed(false)}>
+        <Image src="/logo-empresa.png" width={48} height={48} alt="" priority/>
+      </button>
+    : <div className="brand-mark"><Image src="/logo-empresa.png" width={48} height={48} alt="Logomarca da empresa" priority/></div>}
+    <div className="brand-copy"><strong>dashboard<span>_tools</span></strong><small>Business intelligence</small></div><button type="button" className="icon-button desktop-collapse" title={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-label={sidebarCollapsed?'Expandir menu lateral':'Recolher menu lateral'} aria-expanded={!sidebarCollapsed} onClick={()=>setSidebarCollapsed(v=>!v)}>{sidebarCollapsed?<PanelLeftOpen size={19}/>:<PanelLeftClose size={19}/>}</button><button className="mobile-close icon-button" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}><X size={18}/></button></div>
    <div className="workspace-label"><span className="workspace-icon">D</span><div className="workspace-copy"><strong>Ambiente corporativo</strong><small>{callsLive ? 'Indicadores conectados' : 'Espaço de demonstração'}</small></div><ChevronDown size={15}/></div>
    <nav className="side-nav" aria-label="Categorias">
     {(['Meus Dashboards','Administração'] as const).filter(group=>group!=='Administração'||admin).map(group=>{

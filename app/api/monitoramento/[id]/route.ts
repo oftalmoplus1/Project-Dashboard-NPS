@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: Context) {
  if (!uuid.test(id)) {
   // Diagnostico temporario somente no upstream sintetico do CI.
   if (process.env.SUPABASE_PUBLISHABLE_KEY === 'monitor-test-only') {
-   console.error('MONITOR_TEST_INVALID_ID', JSON.stringify({ id, path: new URL(_request.url).pathname }));
+   console.error('MONITOR_TEST_INVALID_ID', JSON.stringify({ id, len: id.length, codepoints: Array.from(id).map(c => c.codePointAt(0)), pattern: uuid.source, flags: uuid.flags, path: new URL(_request.url).pathname }));
   }
   return NextResponse.json({ error: 'Identificador inválido.' }, { status: 400, headers });
  }

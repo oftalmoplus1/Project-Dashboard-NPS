@@ -87,7 +87,7 @@ BEGIN
    SELECT 1 FROM dashboard_catalog.acesso_dashboards a
    WHERE a.usuario_id = v_usuario AND a.dashboard_id = d.id
   ))
- ORDER BY d.nome,d.id LIMIT 200;
+ ORDER BY d.nome,d.id LIMIT 201;
 END
 $fn$;
 

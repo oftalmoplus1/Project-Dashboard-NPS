@@ -59,7 +59,6 @@ const METRICS: readonly EvolutionMetric[] = ['received', 'answered', 'abandoned'
 const PRESETS: readonly EvolutionPreset[] = [
   'last7', 'last30', 'last90', 'currentMonth', 'previousMonth', 'currentYear', 'previousYear',
 ];
-const DAY_MS = 86_400_000;
 const MAX_BUCKETS = 4000;
 const TZ = 'America/Sao_Paulo';
 const localFormatter = new Intl.DateTimeFormat('en-US', {

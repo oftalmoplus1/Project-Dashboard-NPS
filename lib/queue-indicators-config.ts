@@ -80,7 +80,7 @@ export function makeQueueIndicatorsRow(
       Number.isSafeInteger(n) && n >= 0)) {
     throw new Error('Dados da fila invalidos.');
   }
-  if (answered > received || abandoned > received) {
+  if (answered > received || abandoned > received || answered + abandoned > received) {
     throw new Error('Contadores da fila inconsistentes.');
   }
   return { id, name, received, answered, abandoned,
@@ -105,8 +105,11 @@ export function selectQueueIndicators(
     else {
       const aValue = a[field];
       const bValue = b[field];
-      comparison = aValue === null ? (bValue === null ? 0 : 1) :
-        bValue === null ? -1 : aValue - bValue;
+      if (aValue === null || bValue === null) {
+        // N/A always appears last, regardless of sort direction.
+        return aValue === null ? (bValue === null ? 0 : 1) : -1;
+      }
+      comparison = aValue - bValue;
     }
     return comparison * direction || a.name.localeCompare(b.name, 'pt-BR') ||
       a.id.localeCompare(b.id);

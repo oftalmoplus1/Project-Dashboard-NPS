@@ -34,21 +34,21 @@ export default function CallCenterSummary({ summary, loading, partial, times, ti
       'Recebidas incluem todas as situações. Abandono considera somente o status ABANDON.'}</p>
     </section>
     <div className={styles.metrics}>
-      <section className={`${styles.card} ${styles.abandoned}`} aria-label="Taxa de abandono">
-        <div className={styles.cardHeader}><h3>Taxa de abandono</h3><PhoneOff size={19} aria-hidden="true" /></div>
-        <p className={valueClass}>{percent(summary?.abandonRate)}</p>
-        <p className={styles.hint}>Saiu da fila sem ser atendida</p>
+      <section className={styles.card} aria-label="TME de fila">
+        <div className={styles.cardHeader}><h3>TME de fila</h3><Clock3 size={19} aria-hidden="true" /></div>
+        <p className={styles.value}>{times && times.waitKind !== 'tet_legacy' ? formatCallDuration(times.tme) : '—'}</p>
+        {sourceMode !== 'snapshot' && (!times || times.waitKind === 'tet_legacy') && <span className={styles.badge}>Aguardando validação SQL</span>}
+        <p className={styles.hint}>Tempo médio de espera</p>
       </section>
       <section className={styles.card} aria-label="TMA">
         <div className={styles.cardHeader}><h3>TMA</h3><Headphones size={19} aria-hidden="true" /></div>
         <p className={`${styles.value} ${timeStatus === 'loading' ? styles.skeleton : ''}`}>{formatCallDuration(times?.tma)}</p>
         <p className={styles.hint}>Tempo médio de atendimento</p>
       </section>
-      <section className={styles.card} aria-label="TME de fila">
-        <div className={styles.cardHeader}><h3>TME de fila</h3><Clock3 size={19} aria-hidden="true" /></div>
-        <p className={styles.value}>{times && times.waitKind !== 'tet_legacy' ? formatCallDuration(times.tme) : '—'}</p>
-        {sourceMode !== 'snapshot' && (!times || times.waitKind === 'tet_legacy') && <span className={styles.badge}>Aguardando validação SQL</span>}
-        <p className={styles.hint}>Tempo médio de espera</p>
+      <section className={`${styles.card} ${styles.abandoned}`} aria-label="Taxa de abandono">
+        <div className={styles.cardHeader}><h3>Taxa de abandono</h3><PhoneOff size={19} aria-hidden="true" /></div>
+        <p className={valueClass}>{percent(summary?.abandonRate)}</p>
+        <p className={styles.hint}>Saiu da fila sem ser atendida</p>
       </section>
     </div>
   </div>;

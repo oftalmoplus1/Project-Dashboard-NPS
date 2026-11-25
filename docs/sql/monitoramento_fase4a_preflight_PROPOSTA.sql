@@ -28,7 +28,7 @@ WITH checks AS (
    WHERE c.oid=pg_catalog.to_regclass('dashboard_catalog.acesso_dashboards')
     AND c.relrowsecurity) AS acl_rls
 )
-SELECT pg_catalog.current_database() AS banco,pg_catalog.current_user AS executor,
+SELECT pg_catalog.current_database() AS banco,current_user AS executor,
  pg_catalog.current_setting('server_version') AS postgres,
  checks.*,
  (dashboards_existe AND layouts_existem AND acl_existente AND vinculos_existem

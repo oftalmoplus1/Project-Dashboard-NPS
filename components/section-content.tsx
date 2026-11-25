@@ -6,7 +6,7 @@ import DailyTimesChart from './daily-times-chart';
 import ManageTopics from './manage-topics';
 import ManageDashboards from './manage-dashboards';
 import EditorSourceCatalog from './editor-source-catalog';
-import { Activity, BarChart3, CheckCircle2, Clock3, Database, Layers3, MoreHorizontal, ShieldCheck, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock3, Database, Layers3, MoreHorizontal, ShieldCheck, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
 import type { Section } from '@/lib/navigation';
 import type { CallCenterView } from '@/lib/call-center-design';
 
@@ -91,7 +91,6 @@ function DashboardTable({rows}:{rows:typeof records}){return <div className="tab
 const content:Partial<Record<Section,{title:string;description:string;icon:LucideIcon;items:string[]}>>={
  topicos:{title:'Gerenciar tópicos',description:'Estrutura administrativa preparada. O cadastro persistente de tópicos e suas permissões será liberado somente após a migração SQL revisada.',icon:Layers3,items:['Criação restrita ao administrador','Associação de dashboards sem cópia','Exclusão segura e auditável']},
  fontes:{title:'Catálogo de fontes de dados',description:'O módulo permitirá gerenciar conexões Supabase e importações CSV/PDF, com análise de impacto e validação antes de alterações.',icon:Database,items:['Fontes reutilizáveis','Importações controladas','Dependências e histórico']},
- monitoramento:{title:'Monitoramento de fontes',description:'Área reservada à verificação periódica, resultados de consultas e estados de disponibilidade das fontes.',icon:Activity,items:['Verificações periódicas','Último resultado válido','Diagnósticos administrativos']},
  alertas:{title:'Alertas operacionais',description:'Os alertas serão exclusivos dos administradores, com prioridades, reconhecimento, recorrência e histórico.',icon:TriangleAlert,items:['Crítico · Atenção · Informativo','Reconhecimento e resolução','Histórico de ocorrências']},
  operacoes:{title:'Central de operações administrativas',description:'Somente operações que exigiram acompanhamento especial aparecerão aqui. Pendentes serão exibidas primeiro; os resultados confirmados permanecerão consultáveis.',icon:Clock3,items:['Contador global de pendências','Confirmação segura de resultados','Proteção contra reenvio duplicado']},
  usuarios:{title:'Usuários e permissões',description:'Atribuição futura de autorizações por usuário, tópico e dashboard. Gráficos herdarão o acesso do dashboard.',icon:Users,items:['Permissões independentes por tópico','Acesso negado por padrão','Regras de acesso no servidor']},

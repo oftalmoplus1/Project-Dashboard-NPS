@@ -102,19 +102,43 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Call Center', exact: true }).count(), 1);
     assert.equal(await page.getByRole('link', { name: 'Call Center', exact: true }).getAttribute('href'), '/meus-dashboards/relatorios');
   });
-  await check('collapsed desktop sidebar shows only the company logo and expands on click', async () => {
+  await check('collapsed sidebar restores icons and routes including inactive admin group', async () => {
     const sidebar = page.getByRole('complementary', { name: 'Navegação principal' });
-    await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).click();
-    const expandLogo = sidebar.getByRole('button', { name: 'Expandir menu lateral' });
-    await expandLogo.waitFor({ state: 'visible' });
-    assert.equal(await sidebar.getByRole('link').count(), 0, 'no navigation icons or links remain visible');
-    assert.equal(await sidebar.getByRole('button').count(), 1, 'the logo is the only visible sidebar control');
-    assert.equal(await sidebar.locator('.brand-mark img').count(), 1, 'company logo stays visible');
-    assert.equal(await sidebar.locator('.side-nav').isVisible(), false);
-    assert.equal(await sidebar.locator('.sidebar-bottom').isVisible(), false);
-    await expandLogo.click();
+    const collapse = sidebar.getByRole('button', { name: 'Recolher menu lateral' });
+    await collapse.click();
+    const expand = sidebar.getByRole('button', { name: 'Expandir menu lateral' });
+    await expand.waitFor({ state: 'visible' });
+    assert.equal(await sidebar.locator('.brand-mark img').count(), 1);
+    assert.equal(await sidebar.locator('.side-nav').isVisible(), true,
+      'navigation icons must remain visible in collapsed mode');
+    assert.equal(await sidebar.locator('.sidebar-bottom').isVisible(), true,
+      'account and status icons must return as before');
+    const links = sidebar.locator('.side-nav a.nav-item');
+    await page.waitForFunction(() => {
+      const sidebar = document.querySelector('aside.sidebar');
+      return sidebar && [...sidebar.querySelectorAll('.side-nav a.nav-item')].some(el => el.getAttribute('href') === '/meus-dashboards/relatorios');
+    });
+    const checked = await links.evaluateAll(elements => elements.map(link => {
+      const style = getComputedStyle(link);
+      return { href: link.getAttribute('href'), title: link.getAttribute('title'),
+        svg: !!link.querySelector('svg'), visible: style.display !== 'none',
+        inert: !!link.closest('[inert]') };
+    }));
+    assert.ok(checked.length >= 3, 'show topic, admin and configuration icons');
+    assert.ok(checked.every(item => item.title && item.svg && item.visible && !item.inert),
+      'every icon has title and remains interactive rather than inert');
+    const adminIcon = sidebar.locator('a.nav-item[href="/usuarios"]');
+    await adminIcon.click();
+    await page.waitForURL('**/usuarios');
+    assert.equal(new URL(page.url()).pathname, '/usuarios', 'admin icon must navigate to its route');
+    const settingsIcon = sidebar.locator('a.settings-direct-link[href="/configuracoes"]');
+    await settingsIcon.click();
+    await page.waitForURL('**/configuracoes');
+    assert.equal(new URL(page.url()).pathname, '/configuracoes', 'settings icon must navigate');
+    await expand.click();
     await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).waitFor({ state: 'visible' });
-    assert.equal(await sidebar.locator('.side-nav').isVisible(), true, 'expanded navigation is restored');
+    await page.goto(`${origin}/chamadas`);
+    await totals.getByText('120', { exact: true }).waitFor();
   });
   await check('requested informational footer descriptions are absent', async () => {
     assert.equal(await page.getByText(/Consulta do resumo:/).count(), 0);

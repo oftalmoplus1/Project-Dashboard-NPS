@@ -74,7 +74,7 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
    <nav className="side-nav" aria-label="Categorias">
     {(['Meus Dashboards','Administração'] as const).filter(group=>group!=='Administração'||admin).map(group=>{
       const expanded=openGroup===group;
-      const items=group==='Administração'?sections.filter(item=>item.group===group):[];
+      const items=group==='Administração'?sections.filter(item=>item.group===group && !['operacoes','auditoria','inicio'].includes(item.slug)):[];
       return <div className="nav-group accordion-group" key={group}>
         <button type="button" title={group} className={`accordion-trigger ${expanded?'expanded':''}`} aria-expanded={expanded} aria-controls={`nav-group-${group}`} onClick={()=>setOpenGroup(expanded?null:group)}>
           <span>{group}</span><ChevronDown size={16} aria-hidden="true"/>
@@ -94,6 +94,7 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
         </div>
       </div>
     })}
+    {admin && <Link href="/inicio" title="Visão geral demonstrativa" className={`nav-item settings-direct-link ${section==='inicio'?'active':''}`} aria-current={section==='inicio'?'page':undefined}><span className="nav-settings-icon">{(() => { const Icon=sections.find(s=>s.slug==='inicio')!.icon;return <Icon size={18} strokeWidth={1.9}/> })()}</span><span className="nav-item-label">Visão geral demonstrativa</span></Link>}
     <Link href="/configuracoes" title="Configurações" className={`nav-item settings-direct-link ${section==='configuracoes'?'active':''}`} aria-current={section==='configuracoes'?'page':undefined}><span className="nav-settings-icon">{(() => { const Icon=sections.find(s=>s.slug==='configuracoes')!.icon;return <Icon size={18} strokeWidth={1.9}/> })()}</span><span className="nav-item-label">Configurações</span></Link>
    </nav>
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span className="sidebar-detail">{callsLive ? 'Chamadas · dados reais' : 'Ambiente visual de demonstração'}<br/><small>{callsLive ? 'Indicadores agregados do Supabase' : 'Sem conexão com dados reais'}</small></span></div><div className="account"><div className="avatar">AD</div><div className="sidebar-detail"><strong>{callsLive ? 'Usuário autenticado' : 'Usuário'}</strong><small>{callsLive ? 'Acesso autorizado' : 'Sessão autenticada'}</small></div><ChevronDown size={16}/></div></div>

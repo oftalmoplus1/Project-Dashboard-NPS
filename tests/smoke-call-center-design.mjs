@@ -140,6 +140,28 @@ try {
     await page.goto(`${origin}/chamadas`);
     await totals.getByText('120', { exact: true }).waitFor();
   });
+  await check('administration navigation hides retired entries and places demo overview outside groups', async () => {
+    const sidebar = page.getByRole('complementary', { name: 'Navegação principal' });
+    const categories = sidebar.getByRole('navigation', { name: 'Categorias' });
+    const demo = categories.getByRole('link', { name: 'Visão geral demonstrativa' });
+    const settings = categories.getByRole('link', { name: 'Configurações' });
+    assert.equal(await categories.getByRole('link', { name: 'Operações administrativas' }).count(), 0);
+    assert.equal(await categories.getByRole('link', { name: 'Histórico e auditoria' }).count(), 0);
+    assert.equal(await demo.count(), 1);
+    assert.equal(await demo.getAttribute('href'), '/inicio');
+    assert.equal(await settings.getAttribute('href'), '/configuracoes');
+    assert.equal(await demo.evaluate(element => element.closest('.accordion-panel') === null), true,
+      'demo overview should be a direct link outside accordion categories');
+    await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).click();
+    assert.equal(await demo.isVisible(), true, 'demo icon remains visible when sidebar is collapsed');
+    assert.equal(await demo.locator('svg').count(), 1, 'demo retains its icon');
+    await demo.click();
+    await page.waitForURL('**/inicio');
+    assert.equal(new URL(page.url()).pathname, '/inicio');
+    await sidebar.getByRole('button', { name: 'Expandir menu lateral' }).click();
+    await page.goto(`${origin}/chamadas`);
+    await totals.getByText('120', { exact: true }).waitFor();
+  });
   await check('requested informational footer descriptions are absent', async () => {
     assert.equal(await page.getByText(/Consulta do resumo:/).count(), 0);
     assert.equal(await page.getByText(/A consulta da tela não comprova a sincronização da origem/).count(), 0);

@@ -8,7 +8,7 @@ import { parsePublishedDashboard } from '@/lib/monitoramento-contract';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Context = { params: Promise<{ id: string }> };
 
 /** A request to a guessed UUID is indistinguishable from an unshared dashboard. */
@@ -16,13 +16,7 @@ export async function GET(_request: Request, context: Context) {
  const token = (await cookies()).get(SESSION_COOKIE)?.value;
  if (!token) return NextResponse.json({ error: 'Sessão necessária.' }, { status: 401, headers });
  const { id } = await context.params;
- if (!uuid.test(id)) {
-  // Diagnostico temporario somente no upstream sintetico do CI.
-  if (process.env.SUPABASE_PUBLISHABLE_KEY === 'monitor-test-only') {
-   console.error('MONITOR_TEST_INVALID_ID', JSON.stringify({ id, len: id.length, codepoints: Array.from(id).map(c => c.codePointAt(0)), pattern: uuid.source, flags: uuid.flags, path: new URL(_request.url).pathname }));
-  }
-  return NextResponse.json({ error: 'Identificador inválido.' }, { status: 400, headers });
- }
+ if (!uuid.test(id)) return NextResponse.json({ error: 'Identificador inválido.' }, { status: 400, headers });
  try {
   const user = await verifySupabaseUser(token);
   if (!user) return NextResponse.json({ error: 'Acesso negado.' }, { status: 403, headers });

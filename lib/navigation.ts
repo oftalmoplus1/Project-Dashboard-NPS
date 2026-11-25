@@ -1,4 +1,4 @@
-import { BarChart3, BellRing, BookOpen, ClipboardList, Database, FolderKanban, LayoutDashboard, MonitorCheck, Settings2, ShieldCheck, Users } from 'lucide-react';
+import { BarChart3, BellRing, BookOpen, ClipboardList, Database, FolderKanban, LayoutDashboard, Settings2, ShieldCheck, Users } from 'lucide-react';
 
 // Etapa 1: manter o painel de chamadas existente como entrada de transicao.
 // Na etapa do catalogo persistente, Meus Dashboards passara a listar apenas topicos publicados/autorizados.
@@ -8,7 +8,6 @@ export const sections = [
   {slug:'dashboards',label:'Gerenciar dashboards',icon:BarChart3,group:'Administração'},
   {slug:'usuarios',label:'Usuários e acessos',icon:Users,group:'Administração'},
   {slug:'fontes',label:'Fontes de dados',icon:Database,group:'Administração'},
-  {slug:'monitoramento',label:'Monitoramento',icon:MonitorCheck,group:'Administração'},
   {slug:'alertas',label:'Alertas operacionais',icon:BellRing,group:'Administração'},
   {slug:'operacoes',label:'Operações administrativas',icon:ClipboardList,group:'Administração'},
   {slug:'auditoria',label:'Histórico e auditoria',icon:BookOpen,group:'Administração'},
@@ -29,7 +28,6 @@ export const sectionDescriptions: Record<Section,string> = {
  dashboards:'Crie e organize dashboards e seus gráficos.',
  usuarios:'Gerencie usuários e permissões por tópico e dashboard.',
  fontes:'Catálogo central de fontes de dados validadas.',
- monitoramento:'Acompanhe verificações e disponibilidade das fontes.',
  alertas:'Investigue ocorrências operacionais e seus diagnósticos.',
  operacoes:'Acompanhe alterações administrativas que exigiram confirmação especial.',
  auditoria:'Histórico administrativo e eventos operacionais.',

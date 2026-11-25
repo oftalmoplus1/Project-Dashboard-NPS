@@ -118,3 +118,32 @@
  .topic-dashboard-entry-actions{width:100%;justify-content:space-between}
  .topic-unlink-confirm .outline-button,.topic-unlink-confirm .primary-button{justify-content:center}
 }
+
+/* Navegacao recolhida: somente a logo e visivel, e a logo reabre a barra. */
+.brand-logo-toggle {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.brand-logo-toggle:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+@media (min-width: 761px) {
+  .sidebar-collapsed .brand {
+    width: 100%;
+    padding: 16px 0;
+    justify-content: center;
+    align-items: center;
+  }
+  .sidebar-collapsed .desktop-collapse,
+  .sidebar-collapsed .side-nav,
+  .sidebar-collapsed .sidebar-bottom,
+  .sidebar-collapsed .workspace-label {
+    display: none;
+  }
+}

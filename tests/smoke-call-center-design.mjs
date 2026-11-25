@@ -102,6 +102,20 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Call Center', exact: true }).count(), 1);
     assert.equal(await page.getByRole('link', { name: 'Call Center', exact: true }).getAttribute('href'), '/meus-dashboards/relatorios');
   });
+  await check('collapsed desktop sidebar shows only the company logo and expands on click', async () => {
+    const sidebar = page.getByRole('complementary', { name: 'Navegação principal' });
+    await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).click();
+    const expandLogo = sidebar.getByRole('button', { name: 'Expandir menu lateral' });
+    await expandLogo.waitFor({ state: 'visible' });
+    assert.equal(await sidebar.getByRole('link').count(), 0, 'no navigation icons or links remain visible');
+    assert.equal(await sidebar.getByRole('button').count(), 1, 'the logo is the only visible sidebar control');
+    assert.equal(await sidebar.locator('.brand-mark img').count(), 1, 'company logo stays visible');
+    assert.equal(await sidebar.locator('.side-nav').isVisible(), false);
+    assert.equal(await sidebar.locator('.sidebar-bottom').isVisible(), false);
+    await expandLogo.click();
+    await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).waitFor({ state: 'visible' });
+    assert.equal(await sidebar.locator('.side-nav').isVisible(), true, 'expanded navigation is restored');
+  });
   await check('requested informational footer descriptions are absent', async () => {
     assert.equal(await page.getByText(/Consulta do resumo:/).count(), 0);
     assert.equal(await page.getByText(/A consulta da tela não comprova a sincronização da origem/).count(), 0);

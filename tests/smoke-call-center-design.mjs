@@ -147,6 +147,7 @@ try {
     const settings = categories.getByRole('link', { name: 'Configurações' });
     assert.equal(await categories.getByRole('link', { name: 'Operações administrativas' }).count(), 0);
     assert.equal(await categories.getByRole('link', { name: 'Histórico e auditoria' }).count(), 0);
+    assert.equal(await categories.getByRole('link', { name: 'Monitoramento', exact: true }).count(), 0);
     assert.equal(await demo.count(), 1);
     assert.equal(await demo.getAttribute('href'), '/inicio');
     assert.equal(await settings.getAttribute('href'), '/configuracoes');
@@ -155,6 +156,9 @@ try {
     await sidebar.getByRole('button', { name: 'Recolher menu lateral' }).click();
     assert.equal(await demo.isVisible(), true, 'demo icon remains visible when sidebar is collapsed');
     assert.equal(await demo.locator('svg').count(), 1, 'demo retains its icon');
+    assert.equal((await page.goto(`${origin}/monitoramento`)).status(), 404,
+      'retired monitoring URL must not be accessible directly');
+    await page.goto(`${origin}/chamadas`);
     await demo.click();
     await page.waitForURL('**/inicio');
     assert.equal(new URL(page.url()).pathname, '/inicio');

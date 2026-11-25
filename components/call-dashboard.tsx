@@ -228,7 +228,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
               </tr>)}</tbody>
             </table>
           </div>
-          <p className={styles.hint}>Fonte listar_filas, último lote identificado pelo n8n. TMA/TME são médias simples dos valores informados pelas filas atendidas nesta coleta; não representam a média ponderada por chamadas. A hora da consulta não comprova uma atualização da coleta.</p>
+          <p className={styles.hint}>Fonte listar_filas, último lote identificado pelo n8n. TMA é média simples entre filas com atendimento; TME é média dos tempos por fila ponderada pelas chamadas atendidas com TME disponível. A hora da consulta não comprova uma atualização da coleta.</p>
         </section>}
         {!queueMode && data && <section className={`panel ${styles.chart}`} aria-label="Evolução das chamadas recebidas">
           <div className="panel-head"><div><h2>Evolução das chamadas recebidas</h2><p>{rangeStart === rangeEnd ? 'Dia completo, de 0h a 24h, em intervalos de duas horas.' : data.range.granularity === 'month' ? 'Totais por mês no período.' : 'Totais por dia no período.'}</p></div></div>

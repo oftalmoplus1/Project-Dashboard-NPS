@@ -87,7 +87,8 @@ try {
 
  await check('session required and direct URLs denied', async () => {
   assert.equal((await request('/api/monitoramento')).status, 401);
-  assert.equal((await request('/api/monitoramento/' + id)).status, 401);
+  const anonymousDetail = await request('/api/monitoramento/' + id);
+  assert.equal(anonymousDetail.status, 401, await anonymousDetail.text());
   assert.equal((await request('/monitoramento')).status, 307);
   assert.equal((await request('/monitoramento/' + id)).status, 307);
   assert.equal(dataCalls, 0);
@@ -97,7 +98,7 @@ try {
   assert.equal(list.status, 200);
   assert.deepEqual((await list.json()).rows, []);
   const direct = await request('/api/monitoramento/' + id, 'monitor-manager');
-  assert.equal(direct.status, 404);
+  assert.equal(direct.status, 404, await direct.text());
   assert.equal((await request('/monitoramento', 'monitor-manager')).status, 200);
   assert.equal((await request('/monitoramento/' + id, 'monitor-manager')).status, 404);
  });

@@ -97,13 +97,23 @@ export function parseQueueSnapshot(payload: unknown): { rows: QueueSnapshot[]; s
     const tma = queueDuration(row.tma, 'tma').seconds;
     const tme = queueDuration(row.tme, 'tme').seconds;
     if (tma !== null) { acc.tmaSum += tma; acc.tmaQueues++; }
-    if (tme !== null) { acc.tmeSum += tme; acc.tmeQueues++; }
+    if (tme !== null) {
+      // LigSim provides an already-averaged TME per queue. Weight it by the
+      // answered calls of that queue, not by the number of queues.
+      const weightedSeconds = tme * row.answered;
+      if (!Number.isSafeInteger(weightedSeconds)) {
+        throw new Error('TME ponderado fora de limite');
+      }
+      acc.tmeWeightedSum = addSafe(acc.tmeWeightedSum, weightedSeconds);
+      acc.tmeAnswered = addSafe(acc.tmeAnswered, row.answered);
+      acc.tmeQueues++;
+    }
     return acc;
-  }, { tmaSum: 0, tmeSum: 0, tmaQueues: 0, tmeQueues: 0 });
+  }, { tmaSum: 0, tmeWeightedSum: 0, tmeAnswered: 0, tmaQueues: 0, tmeQueues: 0 });
   return { rows, summary: {
     ...totals,
     tmaSeconds: averages.tmaQueues ? averages.tmaSum / averages.tmaQueues : null,
-    tmeSeconds: averages.tmeQueues ? averages.tmeSum / averages.tmeQueues : null,
+    tmeSeconds: averages.tmeAnswered ? averages.tmeWeightedSum / averages.tmeAnswered : null,
     tmaQueues: averages.tmaQueues,
     tmeQueues: averages.tmeQueues,
     unanswered: null,

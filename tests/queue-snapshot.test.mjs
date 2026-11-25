@@ -70,14 +70,14 @@ test('public response rejects wrong origin or mismatched summaries', () => {
   assert.throws(() => lib.parseQueueApiResponse({ ...baseline, sourceUpdatedAt: null }));
 });
 
-test('average API-provided queue durations with equal queue weights, not call weights', () => {
+test('weight queue TME by answered calls while keeping TMA as simple queue average', () => {
   const data = lib.parseQueueSnapshot([
     { ...queue(1, 50, 30, 5, 3), tma:'00:02:00', tme:'00:01:00' },
     { ...queue(2, 10, 1, 1, 0), tma:'00:04:00', tme:'00:03:00' },
     { ...queue(3, 0, 0, 0, 0), tma:'00:00:00', tme:'00:00:00' },
   ]);
   assert.equal(data.summary.tmaSeconds, 180);
-  assert.equal(data.summary.tmeSeconds, 120);
+  assert.equal(data.summary.tmeSeconds, (60 * 30 + 180 * 1) / 31);
   assert.equal(data.summary.tmaQueues, 2);
   assert.equal(data.summary.tmeQueues, 2);
   assert.equal(data.rows[0].tma,'00:02:00');
@@ -89,9 +89,46 @@ test('zero time is a real observation when a queue has answered calls', () => {
     { ...queue(2, 5, 4, 1, 0), tma:'00:00:30', tme:'00:01:00' },
   ]);
   assert.equal(data.summary.tmaSeconds,15);
-  assert.equal(data.summary.tmeSeconds,30);
+  assert.equal(data.summary.tmeSeconds,48);
   assert.equal(data.summary.tmaQueues,2);
   assert.equal(data.summary.tmeQueues,2);
+});
+
+test('eight LigSim queues reproduce 01:02 weighted TME for 186 answered calls', () => {
+  const source = [
+    [15, 23, 22, 1, 0, '00:00:42'],
+    [14, 10, 9, 1, 0, '00:00:45'],
+    [13, 106, 83, 23, 0, '00:00:49'],
+    [6, 6, 5, 1, 0, '00:02:25'],
+    [4, 20, 19, 1, 0, '00:01:55'],
+    [3, 23, 20, 3, 0, '00:01:24'],
+    [2, 21, 21, 0, 0, '00:00:32'],
+    [1, 8, 7, 1, 0, '00:02:13'],
+  ];
+  const data = lib.parseQueueSnapshot(source.map(([id, received, answered, over, under, tme]) =>
+    ({ ...queue(id, received, answered, over, under), tme })));
+  assert.equal(data.summary.answered, 186);
+  assert.equal(data.summary.tmeQueues, 8);
+  assert.equal(data.summary.tmeSeconds, 11589 / 186);
+  assert.equal(Math.round(data.summary.tmeSeconds), 62);
+});
+
+test('TME excludes queues with missing duration from its weight denominator', () => {
+  const data = lib.parseQueueSnapshot([
+    { ...queue(1, 40, 30, 5, 5), tme: null },
+    { ...queue(2, 2, 1, 1, 0), tme: '00:01:00' },
+    { ...queue(3, 0, 0, 0, 0), tme: '00:00:00' },
+  ]);
+  assert.equal(data.summary.answered, 31);
+  assert.equal(data.summary.tmeQueues, 1);
+  assert.equal(data.summary.tmeSeconds, 60);
+});
+
+test('TME refuses unsafe products instead of silently losing precision', () => {
+  const huge = Number.MAX_SAFE_INTEGER;
+  assert.throws(() => lib.parseQueueSnapshot([
+    { ...queue(1, huge, huge, 0, 0), tme: '00:00:02' },
+  ]), /TME ponderado fora de limite/);
 });
 
 test('missing and invalid durations never silently become zero', () => {
@@ -114,4 +151,5 @@ test('browser response rejects spoofed average, even when counters match', () =>
     consultedAt:'2026-11-24T10:00:00Z',sourceUpdatedAt:'2026-11-24T09:00:00Z'};
   assert.equal(lib.parseQueueApiResponse(baseline).summary.tmaSeconds,70);
   assert.throws(()=>lib.parseQueueApiResponse({...baseline,summary:{...raw.summary,tmaSeconds:1}}));
+  assert.throws(()=>lib.parseQueueApiResponse({...baseline,summary:{...raw.summary,tmeSeconds:1}}));
 });

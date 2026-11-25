@@ -62,3 +62,6 @@ psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_posflight_PROPOSTA.s
 psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-layout-assert.sql
 echo "POSTGRESQL_DRAFTS_INTEGRATION_PASSED"
 echo "POSTGRESQL_EDITOR_LAYOUT_INTEGRATION_PASSED"
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/monitoramento_fase4a_publicacoes_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f tests/sql/monitoring-gallery-assert.sql
+echo "POSTGRESQL_MONITORAMENTO_FASE4A_PASSED"

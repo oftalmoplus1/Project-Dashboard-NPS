@@ -173,6 +173,11 @@ try {
   await check('single grouped card with received answered and abandoned counts', async () => {
     assert.deepEqual(await totals.locator('dd').allTextContents(), ['120', '80', '10']);
   });
+  await check('overview metric cards appear as TME, TMA and abandonment rate', async () => {
+    const cards = page.locator('section[aria-label="TME de fila"], section[aria-label="TMA"], section[aria-label="Taxa de abandono"]');
+    assert.deepEqual(await cards.evaluateAll(elements => elements.map(el => el.getAttribute('aria-label'))),
+      ['TME de fila', 'TMA', 'Taxa de abandono']);
+  });
   await check('abandonment formula ignores incompatible legacy percentage', async () => {
     assert.match(await page.getByRole('region', { name: 'Taxa de abandono', exact: true }).innerText(), /8,33%/);
   });

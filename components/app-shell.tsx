@@ -74,7 +74,7 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
    <nav className="side-nav" aria-label="Categorias">
     {(['Meus Dashboards','Administração'] as const).filter(group=>group!=='Administração'||admin).map(group=>{
       const expanded=openGroup===group;
-      const items=group==='Administração'?sections.filter(item=>item.group===group && !['operacoes','auditoria','inicio'].includes(item.slug)):[];
+      const items=group==='Administração'?sections.filter(item=>item.group===group && !['operacoes','auditoria','inicio','monitoramento'].includes(item.slug)):[];
       return <div className="nav-group accordion-group" key={group}>
         <button type="button" title={group} className={`accordion-trigger ${expanded?'expanded':''}`} aria-expanded={expanded} aria-controls={`nav-group-${group}`} onClick={()=>setOpenGroup(expanded?null:group)}>
           <span>{group}</span><ChevronDown size={16} aria-hidden="true"/>
@@ -83,6 +83,7 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
           <div className="accordion-panel-inner">
             {group==='Meus Dashboards' && topicsLoading && <span className="nav-no-access">Carregando tópicos...</span>}
             {group==='Meus Dashboards' && !topicsLoading && topics.length===0 && <span className="nav-no-access">Nenhum tópico autorizado.</span>}
+            {group==='Meus Dashboards' && <Link href="/monitoramento" title="Galeria de monitoramento" className="nav-item"><ShieldCheck size={18} strokeWidth={1.9}/><span className="nav-item-label">Monitoramento</span></Link>}
             {group==='Meus Dashboards' && topics.map(t=><Link
               key={t.slug} href={`/meus-dashboards/${t.slug}`} title={callCenterTopicLabel(t)}
               className={`nav-item nav-topic-item ${topic?.slug===t.slug?'active':''}`}

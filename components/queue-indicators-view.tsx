@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import {
   selectQueueIndicators, type QueueIndicatorsConfig, type QueueIndicatorsRow,
 } from '@/lib/queue-indicators-config';
@@ -76,7 +76,7 @@ export default function QueueIndicatorsView({
               title={metric.label + ': ' + countFormat.format(row[metric.field])}>
               <div className={styles.track}>
                 <div className={styles[metric.className]}
-                  style={{ '--bar-size': String(row[metric.field] / maximum * 100) + '%' } as React.CSSProperties} />
+                  style={{ '--bar-size': String(row[metric.field] / maximum * 100) + '%' } as CSSProperties} />
               </div>
               <span>{countFormat.format(row[metric.field])}</span>
             </div>)}</div>

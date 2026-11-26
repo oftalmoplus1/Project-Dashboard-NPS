@@ -19,6 +19,8 @@ let catalogCalls = 0;
 let unexpectedQueries = 0;
 let layoutReads = 0;
 let layoutWrites = 0;
+let snapshotCalls = 0;
+let snapshotFailure = false;
 let savedRevision = 0;
 let savedBlocks = [];
 const upstream = createServer(async (req, res) => {
@@ -64,8 +66,23 @@ const upstream = createServer(async (req, res) => {
   layoutWrites++;
   return send(200, [{ revisao: savedRevision, blocos: savedBlocks }]);
  }
+ if (url.pathname === '/rest/v1/rpc/dashboard_ligsim_filas_ativas') {
+  if (token !== 'Bearer visual-admin') return send(403, { code:'42501' });
+  snapshotCalls++;
+  if (snapshotFailure) return send(503, { error: 'Source unavailable' });
+  const updated_at = new Date().toISOString();
+  return send(200, {
+   snapshotKind:'latest_successful_batch',sourceUpdatedAt:updated_at,
+   rows:[
+    {id:1,name:'Fila Alpha',received:10,answered:7,abandon_less_30s:1,
+     abandon_more_30s:2,waiting_calls:0,tma:null,tme:null,updated_at},
+    {id:2,name:'Fila Zero',received:0,answered:0,abandon_less_30s:0,
+     abandon_more_30s:0,waiting_calls:0,tma:null,tme:null,updated_at},
+   ],
+  });
+ }
  unexpectedQueries++;
- return send(500, { error: 'Editor must not read operational data or write drafts' });
+ return send(500, { error: 'Editor must not read unapproved data or write drafts' });
 });
 await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
 
@@ -281,6 +298,32 @@ try {
   assert.equal(unexpectedQueries, 0);
   assert.ok(catalogCalls > 0);
  });
+ await check('listar_filas preview reuses existing admin RPC and clears stale values on errors', async () => {
+  const endpoint = origin + '/api/chamadas/filas';
+  const anonymous = await fetch(endpoint);
+  assert.equal(anonymous.status,401);
+  const manager = await fetch(endpoint,{headers:{Cookie:'dashboard_tools_access_token=visual-manager'}});
+  assert.equal(manager.status,403);
+  const first = page.getByTestId('editor-block').first();
+  await first.click();
+  await page.getByLabel('Fonte candidata').selectOption('listar_filas');
+  const snapshot = first.getByTestId('editor-queue-snapshot');
+  await snapshot.waitFor();
+  assert.match(await snapshot.innerText(),/última coleta/i);
+  assert.match(await snapshot.innerText(),/Recebidas/);
+  assert.match(await snapshot.innerText(),/Atendidas/);
+  assert.match(await snapshot.innerText(),/Abandonadas/);
+  assert.ok(snapshotCalls > 0);
+  assert.equal(unexpectedQueries,0);
+  snapshotFailure = true;
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await first.getByRole('alert').filter({hasText:/Nenhum número anterior/}).waitFor();
+  assert.equal(await first.getByTestId('editor-queue-snapshot').count(),0);
+  snapshotFailure = false;
+  await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+  await snapshot.waitFor();
+  await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i}).waitFor({timeout:15000});
+ });
  await check('external save causes 409 and prevents silent overwrites', async () => {
   savedRevision++;
   const writesBefore = layoutWrites;
@@ -293,7 +336,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Salvar agora' }).isDisabled(), true);
   assert.equal(await page.getByRole('button', { name: 'Recarregar do servidor' }).count(), 1);
  });
- await check('no browser errors, no operational data requests', async () => {
+ await check('no browser errors or unapproved operational queries', async () => {
   assert.deepEqual(errors, []);
   assert.equal(unexpectedQueries, 0);
  });

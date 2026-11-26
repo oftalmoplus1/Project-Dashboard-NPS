@@ -83,7 +83,7 @@ export default function EditorSourceCatalog() {
  return <>
   <div className="notice">
    <ShieldCheck size={17} aria-hidden="true" />
-   <span>As fontes exibidas foram inventariadas. Nenhuma consulta ou métrica foi liberada para o editor. O catálogo não expõe dados operacionais.</span>
+   <span>Este catálogo exibe somente metadados. No Editor Visual, a prévia administrativa de listar_filas utiliza a consulta protegida da última coleta; séries históricas e publicação continuam desabilitadas.</span>
   </div>
   <section className="panel" aria-label="Fontes candidatas para o Editor Visual">
    <div className="panel-head">

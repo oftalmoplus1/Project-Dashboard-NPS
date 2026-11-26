@@ -14,6 +14,8 @@ import {
 } from '@/lib/editor-visual-layout';
 import styles from './dashboard-visual-editor.module.css';
 import { useEditorDraftAutosave } from './use-editor-draft-autosave';
+import { useEditorQueueSnapshot, type SnapshotPreviewState } from './use-editor-queue-snapshot';
+import EditorQueueSnapshotBlock from './editor-queue-snapshot-block';
 
 type DashboardInfo = { id: string; nome: string; topicoNome: string };
 type Dragged = { mode: 'new'; kind: VisualKind } | { mode: 'move'; id: string };
@@ -34,15 +36,15 @@ const icons: Record<VisualKind, LucideIcon> = {
  text: Type,
 };
 
-const allowedMetrics: Record<Exclude<VisualSource, null>, ReadonlyArray<{ id: string; label: string }>> = {
+const allowedMetrics: Record<Exclude<VisualSource, null>, ReadonlyArray<{ id: string; label: string; disabled?: boolean }>> = {
  listar_filas: [
   { id: 'received', label: 'Chamadas recebidas' },
   { id: 'answered', label: 'Chamadas atendidas' },
-  { id: 'waiting_calls', label: 'Chamadas em espera' },
-  { id: 'abandon_less_30s', label: 'Abandonos até 30 s' },
-  { id: 'abandon_more_30s', label: 'Abandonos acima de 30 s' },
-  { id: 'tma', label: 'TMA' },
-  { id: 'tme', label: 'TME' },
+  { id: 'waiting_calls', label: 'Legado: em espera', disabled: true },
+  { id: 'abandon_less_30s', label: 'Legado: abandonos até 30 s', disabled: true },
+  { id: 'abandon_more_30s', label: 'Legado: abandonos acima de 30 s', disabled: true },
+  { id: 'tma', label: 'Legado: TMA', disabled: true },
+  { id: 'tme', label: 'Legado: TME', disabled: true },
  ],
  relatorio_chamadas: [
   { id: 'quantidade_chamadas', label: 'Quantidade de chamadas' },
@@ -61,12 +63,18 @@ function unchanged(a: readonly VisualBlock[], b: readonly VisualBlock[]) {
  return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function BlockContent({ block }: { block: VisualBlock }) {
+function BlockContent({ block, snapshot }: { block: VisualBlock; snapshot: SnapshotPreviewState }) {
  const Icon = icons[block.kind];
  if (block.kind === 'text') {
   return <p className={styles.textContent}>
    {block.text.trim() || 'Selecione este bloco para escrever uma anotação no painel de propriedades.'}
   </p>;
+ }
+ if (block.source === 'listar_filas') {
+  if (block.metric && !['received','answered'].includes(block.metric)) {
+   return <p className={styles.snapshotMessage}>Indicador legado sem prévia nesta fase. Selecione as três métricas, recebidas ou atendidas.</p>;
+  }
+  return <EditorQueueSnapshotBlock block={block} snapshot={snapshot}/>;
  }
  return <div className={styles.placeholder} aria-label={block.kind + ' ainda sem dados'}>
   <Icon size={block.kind === 'kpi' ? 26 : 34} strokeWidth={1.4} aria-hidden="true" />
@@ -101,6 +109,10 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
   nextLocalId.current = 0;
  });
  const selected = useMemo(() => blocks.find(block => block.id === selectedId) ?? null, [blocks, selectedId]);
+ const snapshotEnabled = autosave.status !== 'loading' && blocks.some(block =>
+  block.source === 'listar_filas' && ['kpi','table','bar'].includes(block.kind)
+  && (block.metric === '' || ['received','answered'].includes(block.metric)));
+ const queueSnapshot = useEditorQueueSnapshot(snapshotEnabled);
 
  useEffect(() => {
   if (!autosave.dirty && autosave.status !== 'saving') return;
@@ -285,7 +297,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
     ? 'Consultando layout salvo...'
     : autosave.status === 'saving' ? 'Salvando alterações no Supabase...'
     : autosave.status === 'ready' ? (autosave.dirty ? 'Alterações pendentes de gravação.' : 'Sem alterações pendentes.')
-    : autosave.message} Consultas dos gráficos e publicação continuam desabilitadas.</span>
+    : autosave.message} A prévia da última coleta de listar_filas está disponível para administradores. Histórico por período e publicação continuam desabilitados.</span>
    {(autosave.status === 'error' || autosave.status === 'conflict') && <button type="button"
     className={styles.reloadButton} onClick={() => {
      if (window.confirm('Recarregar o layout do servidor? Alterações não confirmadas nesta aba serão descartadas.')) {
@@ -361,7 +373,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
          <strong>{block.title || 'Sem título'}</strong>
          {!preview && <span className={styles.blockType}>{VISUAL_COMPONENTS.find(item => item.kind === block.kind)?.label}</span>}
         </div>
-        <BlockContent block={block}/>
+        <BlockContent block={block} snapshot={queueSnapshot}/>
         {!preview && active && autosave.editable && <button type="button"
          className={styles.resizeHandle}
          title="Arraste para redimensionar" aria-label={'Redimensionar ' + block.title}
@@ -414,8 +426,9 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
        <label htmlFor="editor-metric">Indicador candidato</label>
        <select id="editor-metric" value={selected.metric} disabled={!selected.source}
         onChange={event => changeSelected({ metric: event.target.value })}>
-        <option value="">Escolha um indicador</option>
-        {selectedMetrics.map(metric => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
+        <option value="">{selected.source === 'listar_filas'
+         ? 'As três métricas (última coleta)' : 'Escolha um indicador'}</option>
+        {selectedMetrics.map(metric => <option key={metric.id} value={metric.id} disabled={metric.disabled}>{metric.label}</option>)}
        </select>
       </div>
       {selected.kind === 'bar' && <div className={styles.control}>
@@ -426,7 +439,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
         <option value="horizontal">Horizontal</option>
        </select>
       </div>}
-      <p className={styles.warning}>Estas opções são apenas configurações locais; ainda não executam consultas nem validam a semântica das métricas.</p>
+      <p className={styles.warning}>Com listar_filas, cartões, tabelas e barras mostram a última coleta validada. Prévia das primeiras 10 filas por nome, sem histórico por data. As demais fontes e gráficos continuam sem consulta. Publicação e filtros persistentes por fila ainda não estão habilitados.</p>
      </>}
      <div className={styles.control}>
       <label>Dimensões na grade (colunas × linhas)</label>

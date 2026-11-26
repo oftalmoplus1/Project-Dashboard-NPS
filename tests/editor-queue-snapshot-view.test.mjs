@@ -13,6 +13,8 @@ const compiler = createRequire(import.meta.url).resolve('typescript/lib/tsc.js')
 execFileSync(process.execPath,[compiler,'lib/editor-queue-snapshot-view.ts',
  '--target','ES2022','--module','commonjs','--strict','--skipLibCheck','--outDir',tmp],{cwd:root});
 const lib = (await import(pathToFileURL(path.join(tmp,'editor-queue-snapshot-view.js')).href)).default;
+const settings = (await import(pathToFileURL(path.join(tmp,'editor-queue-settings.js')).href)).default;
+const cfg = (changes={}) => ({ ...settings.DEFAULT_QUEUE_SETTINGS, ...changes });
 after(()=>fs.rmSync(tmp,{recursive:true,force:true}));
 const queue=(id,name,received,answered,abandoned)=>({
  id,name,received,answered,abandoned,waiting:0,tma:null,tme:null,
@@ -24,7 +26,7 @@ const rows=[
 ];
 
 test('snapshot sums all real abandonments and preserves unmatched transfers',()=>{
- const value=lib.buildEditorSnapshotView(rows,'all');
+ const value=lib.buildEditorSnapshotView(rows,cfg({limit:'all'}));
  assert.deepEqual(value.totals,{received:14,answered:8,abandoned:3,answerRate:8/14*100});
  assert.deepEqual(value.rows.map(row=>row.name),
  ['A - primeiro','M - transferencias','Z - sem movimento']);
@@ -34,9 +36,9 @@ test('snapshot sums all real abandonments and preserves unmatched transfers',()=
 
 test('partial preview never changes the global totals',()=>{
  const many=Array.from({length:25},(_,i)=>queue(i+1,'Fila '+String(i).padStart(2,'0'),i+1,1,0));
- const all=lib.buildEditorSnapshotView(many,'all');
+ const all=lib.buildEditorSnapshotView(many,cfg({limit:'all'}));
  for(const limit of [5,10,20]) {
-  const value=lib.buildEditorSnapshotView(many,limit);
+  const value=lib.buildEditorSnapshotView(many,cfg({limit}));
   assert.equal(value.rows.length,limit);
   assert.equal(value.truncated,true);
   assert.equal(value.totalQueues,25);
@@ -63,5 +65,53 @@ test('reject invalid duplicates, counters, and oversized responses',()=>{
  Array.from({length:201},(_,i)=>queue(i+1,'F'+i,0,0,0)),
  ];
  for(const value of invalids)assert.throws(()=>lib.buildEditorSnapshotView(value));
- assert.throws(()=>lib.buildEditorSnapshotView(rows,7));
+ assert.throws(()=>lib.buildEditorSnapshotView(rows,cfg({limit:7})));
+});
+
+test('select one, many or all; authorized new queues join all only',()=>{
+ const one=lib.buildEditorSnapshotView(rows,cfg({
+  selection:{mode:'selected',ids:[1]},limit:'all',
+ }));
+ assert.deepEqual(one.rows.map(row=>row.id),[1]);
+ assert.deepEqual(one.totals,{received:10,answered:7,abandoned:3,answerRate:70});
+ const many=lib.buildEditorSnapshotView(rows,cfg({
+  selection:{mode:'selected',ids:[1,2]},sortBy:'received',direction:'desc',limit:'all',
+ }));
+ assert.deepEqual(many.rows.map(row=>row.id),[1,2]);
+ assert.equal(many.totals.received,10);
+ assert.equal(many.rows[1].answerRate,null);
+ assert.equal(lib.buildEditorSnapshotView([...rows,queue(4,'Nova fila',5,3,1)],cfg()).totalQueues,4);
+ const missing=lib.buildEditorSnapshotView(rows,cfg({selection:{mode:'selected',ids:[1,999]}}));
+ assert.equal(missing.missingSelectedCount,1);
+ assert.deepEqual(missing.rows.map(row=>row.id),[1]);
+});
+
+test('sort ascending/descending by metric and keep undefined rates last',()=>{
+ const asc=lib.buildEditorSnapshotView(rows,cfg({sortBy:'received',direction:'asc',limit:'all'}));
+ const desc=lib.buildEditorSnapshotView(rows,cfg({sortBy:'received',direction:'desc',limit:'all'}));
+ assert.deepEqual(asc.rows.map(row=>row.id),[2,3,1]);
+ assert.deepEqual(desc.rows.map(row=>row.id),[1,3,2]);
+ const rates=lib.buildEditorSnapshotView(rows,cfg({sortBy:'answerRate',direction:'desc',limit:'all'}));
+ assert.deepEqual(rates.rows.map(row=>row.id),[1,3,2]);
+});
+
+test('strict nested queue settings reject malformed sources and extra keys',()=>{
+ const valid=cfg({selection:{mode:'selected',ids:[1,2]},sortBy:'abandoned',limit:20});
+ assert.deepEqual(settings.parseQueueViewSettings(valid),valid);
+ const invalid=[
+  cfg({selection:{mode:'selected',ids:[]}}),
+  cfg({selection:{mode:'selected',ids:[1,1]}}),
+  cfg({selection:{mode:'selected',ids:[0]}}),
+  cfg({selection:{mode:'selected',ids:['1']}}),
+  cfg({selection:{mode:'all',ids:[1]}}),
+  cfg({direction:'down'}),
+  cfg({sortBy:'SQL'}),
+  cfg({limit:100}),
+  {...valid,sql:'DROP TABLE x'},
+  {...valid,selection:{mode:'selected',ids:[1],where:'true'}},
+ ];
+ for(const bad of invalid) {
+  assert.equal(settings.parseQueueViewSettings(bad),null);
+  assert.throws(()=>lib.buildEditorSnapshotView(rows,bad));
+ }
 });

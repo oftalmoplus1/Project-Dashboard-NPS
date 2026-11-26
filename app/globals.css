@@ -173,6 +173,7 @@
   transform:none;
 }
 @media (max-width:760px) {
+  .page-heading .heading-actions:not(:has(.presentation-enter)) { display:none; }
   .page-heading .heading-actions:has(.presentation-enter) { display:flex; }
   .page-heading .heading-actions .outline-button { display:none; }
   .presentation-surface:fullscreen { padding:20px 15px; }

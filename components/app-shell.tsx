@@ -156,7 +156,7 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
       onClick={()=>void exitPresentation()}>
       <Minimize2 size={17} aria-hidden="true"/> Sair da apresentação
     </button>}
-    <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div><div className="heading-actions">
+    <div className="page-heading">{!(callsLive || topic || section === 'inicio') && <div><div className="eyebrow"><span className="eyebrow-dot"/> VISÃO CORPORATIVA</div><h1>{heading}</h1><p>{headingDescription}</p></div>}<div className="heading-actions">
       {presentationAvailable && <button type="button" className="icon-button presentation-enter" title="Modo de apresentação"
         aria-label="Iniciar modo de apresentação" onClick={()=>void enterPresentation()}>
         <Tv size={21} aria-hidden="true"/>

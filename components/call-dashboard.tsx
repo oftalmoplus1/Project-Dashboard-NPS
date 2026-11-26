@@ -183,7 +183,7 @@ export default function CallDashboard({ activeTab: tab }: { activeTab: CallCente
   return <div className={styles.workspace}>
     <div className={styles.header}>
       <div><h2>Chamadas</h2><p>Visão geral e análises do atendimento.</p></div>
-      <button type="button" className="outline-button" onClick={refresh} disabled={refreshing || queueLoading}>
+      <button type="button" data-presentation-control className="outline-button" onClick={refresh} disabled={refreshing || queueLoading}>
         <RefreshCw size={16} aria-hidden="true" /> Atualizar
       </button>
     </div>

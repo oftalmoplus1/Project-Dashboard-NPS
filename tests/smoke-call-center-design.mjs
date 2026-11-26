@@ -172,7 +172,7 @@ try {
   });
   await check('Call Center dashboard does not show repeated descriptive subtitle', async () => {
     assert.equal(await page.getByText('Visão geral e análises do atendimento.', { exact: true }).count(), 0);
-    assert.equal(await page.locator('main .workspace .header h2').filter({ hasText: /^Chamadas$/ }).count(), 1);
+    assert.equal(await page.locator('main h2').filter({ hasText: /^Chamadas$/ }).count(), 1);
   });
   await check('single grouped card with received answered and abandoned counts', async () => {
     assert.deepEqual(await totals.locator('dd').allTextContents(), ['120', '80', '10']);

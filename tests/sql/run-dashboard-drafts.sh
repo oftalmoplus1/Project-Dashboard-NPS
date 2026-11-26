@@ -63,6 +63,10 @@ psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-layout-assert.sql
 # Fase 4D: contrato V2 aplicado SOMENTE no Postgres efemero da CI.
 psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase4d_queue_config_PROPOSTA.sql
 psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-queue-config-assert.sql
+# Exercicio de rollback, depois que o layout V2 foi substituido por legado no teste.
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase4d_queue_config_ROLLBACK_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-queue-rollback-assert.sql
 echo "POSTGRESQL_DRAFTS_INTEGRATION_PASSED"
 echo "POSTGRESQL_EDITOR_LAYOUT_INTEGRATION_PASSED"
 echo "POSTGRESQL_EDITOR_QUEUE_CONFIG_V2_PASSED"
+echo "POSTGRESQL_EDITOR_QUEUE_CONFIG_ROLLBACK_PASSED"

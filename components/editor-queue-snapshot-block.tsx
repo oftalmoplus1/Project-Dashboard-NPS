@@ -1,6 +1,7 @@
 'use client';
 
 import type { VisualBlock } from '@/lib/editor-visual-layout';
+import { DEFAULT_QUEUE_SETTINGS } from '@/lib/editor-queue-settings';
 import {
  buildEditorSnapshotView, SNAPSHOT_METRICS, editorMetricLabel,
  type SnapshotMetric,
@@ -39,8 +40,11 @@ export default function EditorQueueSnapshotBlock({
  }
  const data = snapshot.data;
  let view: ReturnType<typeof buildEditorSnapshotView>;
- try { view = buildEditorSnapshotView(data.rows,10); }
+ try { view = buildEditorSnapshotView(data.rows,block.queueConfig ?? DEFAULT_QUEUE_SETTINGS); }
  catch { return <p className={styles.snapshotError} role="alert">Dados de filas inconsistentes.</p>; }
+ if (view.totalQueues === 0) return <p className={styles.snapshotMessage}>
+  Nenhuma das filas selecionadas está disponível na última coleta autorizada.
+ </p>;
  const selectedMetric=metric(block.metric);
  const displayedMetrics = selectedMetric ? [selectedMetric] : [...SNAPSHOT_METRICS];
  const maxValues: Record<SnapshotMetric,number> = {
@@ -53,6 +57,9 @@ export default function EditorQueueSnapshotBlock({
    <strong>Última coleta</strong>
    <span>{timestamp.format(new Date(data.sourceUpdatedAt))} · não é histórico por data</span>
   </p>
+  {view.missingSelectedCount>0 && <p className={styles.snapshotMissing} role="status">
+   {view.missingSelectedCount} fila(s) selecionada(s) não consta(m) na última coleta autorizada.
+  </p>}
   {block.kind === 'kpi' && <div className={styles.snapshotKpis}>
    {displayedMetrics.map(key=><div key={key} className={styles.snapshotKpi}>
     <strong>{number.format(view.totals[key])}</strong>
@@ -92,8 +99,8 @@ export default function EditorQueueSnapshotBlock({
    </div>
   </div>}
   {block.kind !== 'kpi' && <p className={styles.snapshotFoot}>
-   {view.truncated ? 'Prévia: 10 primeiras filas de '+view.totalQueues+'.' : view.totalQueues+' filas.'}
-   {' '}Ordenação por nome. Configurações de exibição por componente ainda não publicadas.
+   {view.truncated ? 'Mostrando '+view.rows.length+' de '+view.totalQueues+' filas.' : view.totalQueues+' filas.'}
+   {' '}Ordenação: {block.queueConfig?.sortBy ?? 'name'} · última coleta, não histórico por data.
   </p>}
  </div>;
 }

@@ -324,6 +324,42 @@ try {
   await snapshot.waitFor();
   await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i}).waitFor({timeout:15000});
  });
+ await check('queue component saves selected queues, sorting and limits with reload', async () => {
+  const blocks = page.getByTestId('editor-block');
+  const first = blocks.first();
+  await first.click();
+  await page.getByLabel('Filas do componente').selectOption('selected');
+  const group=page.getByRole('group',{name:'Filas selecionadas'});
+  await group.getByRole('checkbox',{name:'Fila Zero'}).check();
+  await group.getByRole('checkbox',{name:'Fila Alpha'}).uncheck();
+  await page.getByLabel('Ordenar filas por').selectOption('abandoned');
+  await page.getByLabel('Direção da ordenação').selectOption('desc');
+  await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i}).waitFor({timeout:15000});
+  assert.deepEqual(savedBlocks[0].queueConfig.selection,{mode:'selected',ids:[2]});
+  assert.equal(savedBlocks[0].queueConfig.sortBy,'abandoned');
+  assert.equal(savedBlocks[0].queueConfig.direction,'desc');
+  assert.match(await first.getByTestId('editor-queue-snapshot').innerText(),/\b0\b/);
+  const catalog=page.getByRole('complementary',{name:'Catálogo de componentes'});
+  await catalog.getByRole('button',{name:/^Tabela/}).click();
+  await page.getByLabel('Fonte candidata').selectOption('listar_filas');
+  await page.getByLabel('Quantidade de filas exibidas').selectOption('5');
+  await page.getByLabel('Ordenar filas por').selectOption('answered');
+  await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i}).waitFor({timeout:15000});
+  assert.equal(savedBlocks.length,3);
+  assert.equal(savedBlocks[2].queueConfig.limit,5);
+  assert.equal(savedBlocks[2].queueConfig.sortBy,'answered');
+  await page.reload();
+  await page.getByTestId('editor-block').last().waitFor();
+  assert.equal(await page.getByTestId('editor-block').count(),3);
+  await page.getByTestId('editor-block').last().click();
+  assert.equal(await page.getByLabel('Quantidade de filas exibidas').inputValue(),'5');
+  assert.equal(await page.getByLabel('Ordenar filas por').inputValue(),'answered');
+  await page.getByTestId('editor-block').first().click();
+  assert.equal(await page.getByLabel('Filas do componente').inputValue(),'selected');
+  assert.equal(await page.getByRole('group',{name:'Filas selecionadas'})
+   .getByRole('checkbox',{name:'Fila Zero'}).isChecked(),true);
+  assert.equal(unexpectedQueries,0);
+ });
  await check('external save causes 409 and prevents silent overwrites', async () => {
   savedRevision++;
   const writesBefore = layoutWrites;

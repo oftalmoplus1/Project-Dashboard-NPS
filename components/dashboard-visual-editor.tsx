@@ -16,6 +16,7 @@ import styles from './dashboard-visual-editor.module.css';
 import { useEditorDraftAutosave } from './use-editor-draft-autosave';
 import { useEditorQueueSnapshot, type SnapshotPreviewState } from './use-editor-queue-snapshot';
 import EditorQueueSnapshotBlock from './editor-queue-snapshot-block';
+import { DEFAULT_QUEUE_SETTINGS, type QueueViewSettings, type QueueSortField, type QueueLimit } from '@/lib/editor-queue-settings';
 
 type DashboardInfo = { id: string; nome: string; topicoNome: string };
 type Dragged = { mode: 'new'; kind: VisualKind } | { mode: 'move'; id: string };
@@ -40,6 +41,7 @@ const allowedMetrics: Record<Exclude<VisualSource, null>, ReadonlyArray<{ id: st
  listar_filas: [
   { id: 'received', label: 'Chamadas recebidas' },
   { id: 'answered', label: 'Chamadas atendidas' },
+  { id: 'abandoned', label: 'Chamadas abandonadas (todas)' },
   { id: 'waiting_calls', label: 'Legado: em espera', disabled: true },
   { id: 'abandon_less_30s', label: 'Legado: abandonos até 30 s', disabled: true },
   { id: 'abandon_more_30s', label: 'Legado: abandonos acima de 30 s', disabled: true },
@@ -71,7 +73,7 @@ function BlockContent({ block, snapshot }: { block: VisualBlock; snapshot: Snaps
   </p>;
  }
  if (block.source === 'listar_filas') {
-  if (block.metric && !['received','answered'].includes(block.metric)) {
+  if (block.metric && !['received','answered','abandoned'].includes(block.metric)) {
    return <p className={styles.snapshotMessage}>Indicador legado sem prévia nesta fase. Selecione as três métricas, recebidas ou atendidas.</p>;
   }
   return <EditorQueueSnapshotBlock block={block} snapshot={snapshot}/>;
@@ -111,7 +113,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  const selected = useMemo(() => blocks.find(block => block.id === selectedId) ?? null, [blocks, selectedId]);
  const snapshotEnabled = autosave.status !== 'loading' && blocks.some(block =>
   block.source === 'listar_filas' && ['kpi','table','bar'].includes(block.kind)
-  && (block.metric === '' || ['received','answered'].includes(block.metric)));
+  && (block.metric === '' || ['received','answered','abandoned'].includes(block.metric)));
  const queueSnapshot = useEditorQueueSnapshot(snapshotEnabled);
 
  useEffect(() => {
@@ -259,6 +261,32 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
  }
 
  const selectedMetrics = selected?.source ? allowedMetrics[selected.source] : [];
+ const queueConfig = selected?.queueConfig ?? DEFAULT_QUEUE_SETTINGS;
+ const availableQueues = queueSnapshot.status === 'ready' && queueSnapshot.data
+  ? [...queueSnapshot.data.rows].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR') || a.id-b.id)
+  : [];
+ function changeQueueConfig(next: QueueViewSettings) {
+  if (!selected || selected.source !== 'listar_filas'
+    || !['kpi','table','bar'].includes(selected.kind)) return;
+  changeSelected({ queueConfig: next });
+ }
+ function setSelectionMode(mode:'all'|'selected') {
+  if (mode === 'all') {
+   changeQueueConfig({ ...queueConfig, selection:{mode:'all'} });
+  } else if (availableQueues.length>0) {
+   const existing = queueConfig.selection.mode==='selected' ? queueConfig.selection.ids : [];
+   const validIds = existing.filter(id=>availableQueues.some(row=>row.id===id));
+   changeQueueConfig({ ...queueConfig,
+    selection:{mode:'selected', ids:validIds.length ? validIds : [availableQueues[0].id]} });
+  }
+ }
+ function toggleQueue(id:number, checked:boolean) {
+  if (queueConfig.selection.mode!=='selected') return;
+  const current = queueConfig.selection.ids;
+  const next = checked ? [...current.filter(v=>v!==id),id].sort((a,b)=>a-b)
+   : current.filter(v=>v!==id);
+  if (next.length) changeQueueConfig({...queueConfig,selection:{mode:'selected',ids:next}});
+ }
 
  return <div className={styles.editor} data-testid="visual-editor">
   <header className={styles.topbar}>
@@ -272,7 +300,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
      <ArrowLeft size={19} />
     </Link>
     <div>
-     <span className={styles.eyebrow}>Editor Visual · Fase 3B</span>
+     <span className={styles.eyebrow}>Editor Visual · Configuração de filas</span>
      <h1>{dashboard.nome}</h1>
      <p>Tópico: {dashboard.topicoNome} · Rascunho</p>
     </div>
@@ -416,6 +444,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
         onChange={event => changeSelected({
          source: event.target.value ? event.target.value as Exclude<VisualSource, null> : null,
          metric: '',
+         queueConfig: undefined,
         })}>
         <option value="">Não selecionada</option>
         <option value="listar_filas">listar_filas · última coleta</option>
@@ -431,6 +460,61 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
         {selectedMetrics.map(metric => <option key={metric.id} value={metric.id} disabled={metric.disabled}>{metric.label}</option>)}
        </select>
       </div>
+      {selected.source === 'listar_filas' && ['kpi','table','bar'].includes(selected.kind) && <>
+       <div className={styles.control}>
+        <label htmlFor="editor-queue-selection">Filas do componente</label>
+        <select id="editor-queue-selection" value={queueConfig.selection.mode}
+         onChange={event=>setSelectionMode(event.target.value as 'all'|'selected')}>
+         <option value="all">Todas as filas autorizadas</option>
+         <option value="selected" disabled={availableQueues.length===0}>Selecionar filas</option>
+        </select>
+        <small>“Todas” inclui automaticamente novas filas autorizadas.</small>
+       </div>
+       {queueConfig.selection.mode==='selected' && <div className={styles.control}>
+        <span className={styles.queueSelectionTitle}>Escolha uma ou várias filas</span>
+        <div className={styles.queueSelectionList} role="group" aria-label="Filas selecionadas">
+         {availableQueues.map(row=><label key={row.id} className={styles.queueOption}>
+          <input type="checkbox"
+           checked={queueConfig.selection.mode==='selected' && queueConfig.selection.ids.includes(row.id)}
+           onChange={event=>toggleQueue(row.id,event.target.checked)}/>
+          <span>{row.name}</span>
+         </label>)}
+        </div>
+        <small>É necessário manter pelo menos uma fila selecionada.</small>
+       </div>}
+       <div className={styles.control}>
+        <label htmlFor="editor-queue-sort">Ordenar filas por</label>
+        <select id="editor-queue-sort" value={queueConfig.sortBy}
+         onChange={event=>changeQueueConfig({...queueConfig,sortBy:event.target.value as QueueSortField})}>
+         <option value="name">Nome da fila</option>
+         <option value="received">Chamadas recebidas</option>
+         <option value="answered">Chamadas atendidas</option>
+         <option value="abandoned">Chamadas abandonadas</option>
+         <option value="answerRate">Percentual de atendimento</option>
+        </select>
+       </div>
+       <div className={styles.control}>
+        <label htmlFor="editor-queue-direction">Direção da ordenação</label>
+        <select id="editor-queue-direction" value={queueConfig.direction}
+         onChange={event=>changeQueueConfig({...queueConfig,
+          direction:event.target.value as 'asc'|'desc'})}>
+         <option value="asc">Crescente</option>
+         <option value="desc">Decrescente</option>
+        </select>
+       </div>
+       {selected.kind!=='kpi' && <div className={styles.control}>
+        <label htmlFor="editor-queue-limit">Quantidade de filas exibidas</label>
+        <select id="editor-queue-limit" value={String(queueConfig.limit)}
+         onChange={event=>changeQueueConfig({...queueConfig,
+          limit:event.target.value==='all'?'all':Number(event.target.value) as QueueLimit})}>
+         <option value="5">5 filas</option>
+         <option value="10">10 filas</option>
+         <option value="20">20 filas</option>
+         <option value="all">Todas as filas</option>
+        </select>
+        <small>O KPI consolidado soma todas as filas selecionadas, sem aplicar esse limite.</small>
+       </div>}
+      </>}
       {selected.kind === 'bar' && <div className={styles.control}>
        <label htmlFor="editor-orientation">Orientação das barras</label>
        <select id="editor-orientation" value={selected.chartOrientation}
@@ -439,7 +523,7 @@ export default function DashboardVisualEditor({ dashboard }: { dashboard: Dashbo
         <option value="horizontal">Horizontal</option>
        </select>
       </div>}
-      <p className={styles.warning}>Com listar_filas, cartões, tabelas e barras mostram a última coleta validada. Prévia das primeiras 10 filas por nome, sem histórico por data. As demais fontes e gráficos continuam sem consulta. Publicação e filtros persistentes por fila ainda não estão habilitados.</p>
+      <p className={styles.warning}>Os filtros de fila, ordenação e limites deste componente são salvos no rascunho após instalação do contrato V2 no Supabase. Somente última coleta: não há histórico por datas. Publicação continua desabilitada.</p>
      </>}
      <div className={styles.control}>
       <label>Dimensões na grade (colunas × linhas)</label>

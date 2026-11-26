@@ -1,3 +1,5 @@
+import type { QueueViewSettings } from './editor-queue-settings';
+
 /**
  * Editor Visual / Fase 3A: modelagem do layout local e deterministica.
  * Nao armazena dados de chamadas, nao gera consultas SQL ou publicacoes.
@@ -22,6 +24,8 @@ export type VisualBlock = {
  metric: string;
  chartOrientation: 'vertical' | 'horizontal';
  text: string;
+ /** Present only for V2 queue-configured blocks; legacy 11-field blocks remain valid. */
+ queueConfig?: QueueViewSettings;
 };
 
 export const VISUAL_COMPONENTS: ReadonlyArray<{
@@ -127,14 +131,18 @@ export function resizeVisualBlock(
 
 export function setVisualBlock(
  current: readonly VisualBlock[], id: string, changes: Partial<Pick<VisualBlock,
- 'title' | 'source' | 'metric' | 'chartOrientation' | 'text'>>
+ 'title' | 'source' | 'metric' | 'chartOrientation' | 'text' | 'queueConfig'>>
 ): VisualBlock[] {
  return current.map(block => {
   if (block.id !== id) return block;
-  return {
+  const updated = {
    ...block, ...changes,
    title: typeof changes.title === 'string' ? changes.title.slice(0, 80) : block.title,
    text: typeof changes.text === 'string' ? changes.text.slice(0, 2000) : block.text,
   };
+  // Never persist queue settings on nonqueue components.
+  if (updated.source !== 'listar_filas' || !['kpi','table','bar'].includes(updated.kind)
+    || updated.queueConfig === undefined) delete updated.queueConfig;
+  return updated;
  });
 }

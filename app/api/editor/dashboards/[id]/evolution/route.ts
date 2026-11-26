@@ -13,7 +13,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const noStore = { 'Cache-Control': 'private, no-store', Vary: 'Cookie' };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxRequestBytes = 8192;
 const maxResponseBytes = 8 * 1024 * 1024;
 type Context = { params: Promise<{ id: string }> };

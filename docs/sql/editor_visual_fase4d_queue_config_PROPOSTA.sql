@@ -169,7 +169,22 @@ BEGIN
      SELECT value FROM pg_catalog.jsonb_array_elements(v_selection->'ids')
     LOOP
      IF pg_catalog.jsonb_typeof(v_queue_item) IS DISTINCT FROM 'number'
-      OR v_queue_item::text !~ '^[1-9][0-9]{0,9}
+      OR v_queue_item::text !~ '^[1-9][0-9]{0,9}$' THEN
+      RAISE EXCEPTION 'ID de fila invalido' USING ERRCODE='22023';
+     END IF;
+     v_queue_id := (v_queue_item::text)::bigint;
+     IF v_queue_id>2147483647 OR v_queue_id=ANY(v_queue_ids) THEN
+      RAISE EXCEPTION 'ID de fila duplicado ou fora de faixa'
+       USING ERRCODE='22023';
+     END IF;
+     v_queue_ids := pg_catalog.array_append(v_queue_ids,v_queue_id);
+    END LOOP;
+   ELSE
+    RAISE EXCEPTION 'Modo de selecao de filas invalido'
+     USING ERRCODE='22023';
+   END IF;
+  END IF;
+  v_ids := pg_catalog.array_append(v_ids, v_id);
   FOR v_key IN SELECT pg_catalog.unnest(ARRAY['x','y','w','h']) LOOP
    IF pg_catalog.jsonb_typeof(v_item->v_key) IS DISTINCT FROM 'number'
      OR COALESCE((v_item->>v_key) ~ '^[0-9]{1,2}$', false) IS NOT TRUE THEN

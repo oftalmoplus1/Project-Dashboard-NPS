@@ -103,11 +103,16 @@ export async function POST(request: Request, context: Context) {
   if (Buffer.byteLength(raw, 'utf8') > maxResponseBytes) {
    return failure('Resposta histórica excedeu o limite seguro.', 502);
   }
-  const rows: unknown = JSON.parse(raw);
-  if (!Array.isArray(rows) || rows.length !== 1) {
+  let projected;
+  try {
+   const rows: unknown = JSON.parse(raw);
+   if (!Array.isArray(rows) || rows.length !== 1) {
+    return failure('Resposta histórica inválida.', 502);
+   }
+   projected = projectVerifiedEvolution(config, rows[0]);
+  } catch {
    return failure('Resposta histórica inválida.', 502);
   }
-  const projected = projectVerifiedEvolution(config, rows[0]);
   return NextResponse.json({ ...projected, source: 'verified_queue_entries' }, { headers: noStore });
  } catch {
   return failure('Não foi possível consultar o histórico de filas.', 503);

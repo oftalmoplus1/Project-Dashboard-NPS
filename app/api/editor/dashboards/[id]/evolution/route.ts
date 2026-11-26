@@ -52,11 +52,12 @@ export async function POST(request: Request, context: Context) {
   return failure('Não foi possível validar a sessão.', 503);
  }
 
+ const evaluationTime = new Date();
  let config;
  try {
   const raw = await request.text();
   if (Buffer.byteLength(raw, 'utf8') > maxRequestBytes) return failure('Configuração muito grande.', 413);
-  config = parseEvolutionConfig(JSON.parse(raw));
+  config = parseEvolutionConfig(JSON.parse(raw), evaluationTime);
  } catch {
   return failure('Configuração inválida.', 400);
  }
@@ -67,7 +68,7 @@ export async function POST(request: Request, context: Context) {
   return failure('Histórico de entradas em filas ainda não homologado.', 503);
  }
 
- const period = resolveEvolutionPeriod(config.period);
+ const period = resolveEvolutionPeriod(config.period, evaluationTime);
  try {
   const { url, publishableKey } = getSupabaseServerConfig();
   const upstream = await fetch(url + '/rest/v1/rpc/dashboard_editor_filas_evolucao', {
@@ -109,7 +110,7 @@ export async function POST(request: Request, context: Context) {
    if (!Array.isArray(rows) || rows.length !== 1) {
     return failure('Resposta histórica inválida.', 502);
    }
-   projected = projectVerifiedEvolution(config, rows[0]);
+   projected = projectVerifiedEvolution(config, rows[0], evaluationTime);
   } catch {
    return failure('Resposta histórica inválida.', 502);
   }

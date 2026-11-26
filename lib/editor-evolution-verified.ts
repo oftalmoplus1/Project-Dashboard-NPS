@@ -217,7 +217,11 @@ export function projectVerifiedEvolution(
  selected.sort((a, b) => {
   const byName = a.name.localeCompare(b.name, 'pt-BR') || a.id.localeCompare(b.id);
   if (config.sort.field === 'name') return config.sort.direction === 'asc' ? byName : -byName;
-  const total = (id: string) => data.get(id)!.reduce((sum, row) => sum + row[mainMetric], 0);
+  const total = (id: string) => data.get(id)!.reduce((sum, row) => {
+   const value = sum + row[mainMetric];
+   if (!Number.isSafeInteger(value)) throw new Error('Contagem acumulada insegura.');
+   return value;
+  }, 0);
   const difference = total(a.id) - total(b.id);
   return difference !== 0 ? (config.sort.direction === 'asc' ? difference : -difference) : byName;
  });

@@ -1,6 +1,6 @@
 -- Editor Visual fase 4B: INVENTARIO SOMENTE LEITURA.
 -- Executar EXCLUSIVAMENTE no SQL Editor do Supabase self-hosted do Dashboard NPS.
--- NAO usar no projeto Supabase cloud patr imind-dev. Nenhum comando altera dados.
+-- NAO usar no projeto Supabase cloud patrimind-dev. Nenhum comando altera dados.
 -- Enviar somente o resultado sem credenciais nem linhas telefonicas.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '8s';
@@ -18,6 +18,18 @@ JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = 'public'
   AND c.relname IN ('listar_filas', 'relatorio_chamadas')
 ORDER BY c.relname;
+
+-- 2b. Descoberta de outras tabelas/views candidatas a EVENTOS de filas.
+-- Apenas nomes de objetos: nenhuma linha operacional e consultada.
+SELECT n.nspname AS esquema, c.relname AS objeto, c.relkind AS tipo
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relkind IN ('r','p','v','m')
+  AND n.nspname NOT IN ('pg_catalog','information_schema','auth','storage',
+                       'pg_toast','realtime','supabase_functions')
+  AND c.relname ~* '(fila|queue|transfer|evento|event|chamada|call|ligsim)'
+ORDER BY n.nspname,c.relname
+LIMIT 80;
 
 -- 3. Catalogo de colunas: verificar se existe uma tabela/coluna com
 -- identificador ESTAVEL de chamada e EVENTO de cada passagem em fila.

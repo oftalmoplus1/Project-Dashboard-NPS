@@ -25,7 +25,7 @@ export async function GET() {
   return NextResponse.json({
    rows: getEditorSourceCatalog(),
    consultasHabilitadas: false,
-   aviso: 'Inventário de campos candidatos; nenhum acesso a consultas foi autorizado.'
+   aviso: 'Catálogo de metadados sem acesso a dados. A prévia do Editor Visual usa a API protegida da última coleta de listar_filas.'
   }, { headers });
  } catch {
   return NextResponse.json({ error: 'Não foi possível carregar o catálogo de fontes.' }, { status: 503, headers });

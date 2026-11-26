@@ -43,7 +43,8 @@ export function buildEditorSnapshotView(
  });
  const ids = config.selection.mode === 'selected' ? new Set(config.selection.ids) : null;
  const selected = ids ? available.filter(row=>ids.has(row.id)) : available;
- const missingSelectedCount = ids ? config.selection.ids.filter(id=>!seen.has(id)).length : 0;
+ const missingSelectedCount = config.selection.mode === 'selected'
+  ? config.selection.ids.filter(id=>!seen.has(id)).length : 0;
  const totals=selected.reduce((acc,row)=>({
   received:safeSum(acc.received,row.received),
   answered:safeSum(acc.answered,row.answered),

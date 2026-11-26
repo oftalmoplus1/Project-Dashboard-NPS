@@ -170,6 +170,10 @@ try {
     assert.equal(await page.getByText(/Consulta do resumo:/).count(), 0);
     assert.equal(await page.getByText(/A consulta da tela não comprova a sincronização da origem/).count(), 0);
   });
+  await check('Call Center dashboard does not show repeated descriptive subtitle', async () => {
+    assert.equal(await page.getByText('Visão geral e análises do atendimento.', { exact: true }).count(), 0);
+    assert.equal(await page.locator('main h2').filter({ hasText: /^Chamadas$/ }).count(), 1);
+  });
   await check('single grouped card with received answered and abandoned counts', async () => {
     assert.deepEqual(await totals.locator('dd').allTextContents(), ['120', '80', '10']);
   });

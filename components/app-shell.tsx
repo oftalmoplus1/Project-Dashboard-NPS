@@ -149,7 +149,11 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
       onMouseMove={presenting?showExit:undefined} onTouchStart={presenting?showExit:undefined}>
     {presenting && <button type="button" className={`presentation-exit ${exitVisible?'visible':''}`}
       aria-label="Sair da apresentação" title="Sair da apresentação"
-      onMouseEnter={showExit} onFocus={showExit} onClick={()=>void exitPresentation()}>
+      onMouseEnter={()=>{if(hideExitTimer.current)clearTimeout(hideExitTimer.current);setExitVisible(true);}}
+      onMouseLeave={showExit}
+      onFocus={()=>{if(hideExitTimer.current)clearTimeout(hideExitTimer.current);setExitVisible(true);}}
+      onBlur={showExit}
+      onClick={()=>void exitPresentation()}>
       <Minimize2 size={17} aria-hidden="true"/> Sair da apresentação
     </button>}
     <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div><div className="heading-actions">

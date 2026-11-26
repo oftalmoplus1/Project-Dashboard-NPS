@@ -60,5 +60,9 @@ psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_preflight_PROPOSTA.s
 psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_layout_rascunho_PROPOSTA.sql
 psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase3b_posflight_PROPOSTA.sql
 psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-layout-assert.sql
+# Fase 4D: contrato V2 aplicado SOMENTE no Postgres efemero da CI.
+psql -X -v ON_ERROR_STOP=1 -f docs/sql/editor_visual_fase4d_queue_config_PROPOSTA.sql
+psql -X -v ON_ERROR_STOP=1 -f tests/sql/editor-queue-config-assert.sql
 echo "POSTGRESQL_DRAFTS_INTEGRATION_PASSED"
 echo "POSTGRESQL_EDITOR_LAYOUT_INTEGRATION_PASSED"
+echo "POSTGRESQL_EDITOR_QUEUE_CONFIG_V2_PASSED"

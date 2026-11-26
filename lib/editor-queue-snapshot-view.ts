@@ -1,70 +1,77 @@
 import type { QueueSnapshot } from './ligsim-queue-snapshot';
+import {
+ DEFAULT_QUEUE_SETTINGS, parseQueueViewSettings, type QueueViewSettings,
+} from './editor-queue-settings';
 
 /**
- * Presentation of the latest validated listar_filas snapshot.
- * Never converts updated_at into a call timestamp or invents history.
+ * Projection of the latest validated snapshot, NEVER of a time interval.
+ * All queue visibility is limited to the authorized rows returned by the RPC.
  */
 export type SnapshotMetric = 'received' | 'answered' | 'abandoned';
-export type SnapshotLimit = 5 | 10 | 20 | 'all';
 export type SnapshotQueueRow = Pick<QueueSnapshot, 'id'|'name'|'received'|'answered'|'abandoned'> & {
  answerRate: number | null;
 };
 
-function safeSum(a: number, b: number): number {
- const total = a + b;
- if (!Number.isSafeInteger(total)) throw new Error('Soma de filas fora do limite.');
- return total;
+function safeSum(a:number,b:number):number {
+ const result = a+b;
+ if (!Number.isSafeInteger(result)) throw new Error('Soma de filas fora do limite.');
+ return result;
 }
 
 export function buildEditorSnapshotView(
- rows: readonly QueueSnapshot[],
- limit: SnapshotLimit = 10,
+ source: readonly QueueSnapshot[],
+ config: QueueViewSettings = DEFAULT_QUEUE_SETTINGS,
 ): {
  rows: SnapshotQueueRow[];
  totalQueues: number;
  truncated: boolean;
- totals: { received: number; answered: number; abandoned: number; answerRate: number | null };
+ missingSelectedCount: number;
+ totals: {received:number;answered:number;abandoned:number;answerRate:number|null};
 } {
- if (!Array.isArray(rows) || rows.length < 1 || rows.length > 200
-   || ![5,10,20,'all'].includes(limit)) throw new Error('Snapshot inválido ou indisponível.');
+ if (!parseQueueViewSettings(config) || !Array.isArray(source)
+  || source.length < 1 || source.length > 200) throw new Error('Snapshot ou filtro inválido.');
  const seen = new Set<number>();
- const sorted = rows.map((row): SnapshotQueueRow => {
-  if (!row || !Number.isSafeInteger(row.id) || row.id < 1 || seen.has(row.id)
-   || typeof row.name !== 'string' || !row.name.trim() || row.name.length > 120
-   || ![row.received,row.answered,row.abandoned].every(value =>
-    Number.isSafeInteger(value) && value >= 0)
-   || row.answered + row.abandoned > row.received) {
-   throw new Error('Fila ou contadores inválidos.');
-  }
+ const available = source.map((row):SnapshotQueueRow=>{
+  if (!row || !Number.isSafeInteger(row.id) || row.id<1 || row.id>2147483647
+   || seen.has(row.id) || typeof row.name !== 'string' || !row.name.trim()
+   || row.name.length>120 || ![row.received,row.answered,row.abandoned].every(n=>
+     Number.isSafeInteger(n) && n>=0)
+   || safeSum(row.answered,row.abandoned)>row.received) throw new Error('Fila inválida.');
   seen.add(row.id);
-  return {
-   id: row.id, name: row.name, received: row.received,
-   answered: row.answered, abandoned: row.abandoned,
-   answerRate: row.received === 0 ? null : row.answered / row.received * 100,
-  };
+  return { id:row.id,name:row.name,received:row.received,answered:row.answered,
+   abandoned:row.abandoned,answerRate:row.received===0?null:row.answered/row.received*100};
  });
- sorted.sort((a,b) => a.name.localeCompare(b.name,'pt-BR') || a.id - b.id);
- const totals = sorted.reduce((sum,row)=>({
-  received: safeSum(sum.received,row.received),
-  answered: safeSum(sum.answered,row.answered),
-  abandoned: safeSum(sum.abandoned,row.abandoned),
- }), {received:0,answered:0,abandoned:0});
+ const ids = config.selection.mode === 'selected' ? new Set(config.selection.ids) : null;
+ const selected = ids ? available.filter(row=>ids.has(row.id)) : available;
+ const missingSelectedCount = ids ? config.selection.ids.filter(id=>!seen.has(id)).length : 0;
+ const totals=selected.reduce((acc,row)=>({
+  received:safeSum(acc.received,row.received),
+  answered:safeSum(acc.answered,row.answered),
+  abandoned:safeSum(acc.abandoned,row.abandoned),
+ }),{received:0,answered:0,abandoned:0});
+ const byName=(a:SnapshotQueueRow,b:SnapshotQueueRow)=>
+  a.name.localeCompare(b.name,'pt-BR') || a.id-b.id;
+ selected.sort((a,b)=>{
+  if(config.sortBy==='name') return byName(a,b)*(config.direction==='asc'?1:-1);
+  const av=a[config.sortBy], bv=b[config.sortBy];
+  // N/A always stays last, independent of direction.
+  if(av===null) return bv===null?byName(a,b):1;
+  if(bv===null) return -1;
+  const diff=(av as number)-(bv as number);
+  return diff!==0 ? diff*(config.direction==='asc'?1:-1):byName(a,b);
+ });
+ const limited = config.limit==='all' ? selected : selected.slice(0,config.limit);
  return {
-  rows: limit === 'all' ? sorted : sorted.slice(0,limit),
-  totalQueues: sorted.length,
-  truncated: limit !== 'all' && sorted.length > limit,
-  totals: {
-   ...totals, answerRate: totals.received === 0 ? null : totals.answered / totals.received * 100,
-  },
+  rows:limited,totalQueues:selected.length,
+  truncated:limited.length<selected.length,missingSelectedCount,
+  totals:{...totals,answerRate:totals.received===0?null:totals.answered/totals.received*100},
  };
 }
-
-export function editorMetricLabel(metric: SnapshotMetric): string {
+export const SNAPSHOT_METRICS:readonly SnapshotMetric[]=['received','answered','abandoned'];
+export function editorMetricLabel(metric:SnapshotMetric):string {
  switch(metric) {
-  case 'received': return 'Recebidas';
-  case 'answered': return 'Atendidas';
-  case 'abandoned': return 'Abandonadas';
+  case 'received':return 'Recebidas';
+  case 'answered':return 'Atendidas';
+  case 'abandoned':return 'Abandonadas';
  }
 }
-
-export const SNAPSHOT_METRICS: readonly SnapshotMetric[] = ['received','answered','abandoned'];

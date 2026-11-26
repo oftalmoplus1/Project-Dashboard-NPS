@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, CircleHelp, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun, X, ShieldCheck, Folder } from 'lucide-react';
+import { ChevronDown, CircleHelp, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun, X, ShieldCheck, Folder, Tv, Minimize2 } from 'lucide-react';
 import { sections, sectionDescriptions, type Section } from '@/lib/navigation';
 import { callCenterTopicLabel, CALL_CENTER_NAV_ITEMS, type CallCenterView } from '@/lib/call-center-design';
 import callCenterStyles from './call-center.module.css';
@@ -30,6 +30,49 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
  const [sidebarReady,setSidebarReady]=useState(false);
  const [desktopNav,setDesktopNav]=useState(false);
  const [query,setQuery]=useState('');
+ const presentationRef=useRef<HTMLElement|null>(null);
+ const hideExitTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const [presenting,setPresenting]=useState(false);
+ const [exitVisible,setExitVisible]=useState(false);
+ const [presentationError,setPresentationError]=useState('');
+ const showExit=useCallback(()=>{
+   setExitVisible(true);
+   if(hideExitTimer.current)clearTimeout(hideExitTimer.current);
+   hideExitTimer.current=setTimeout(()=>setExitVisible(false),3000);
+ },[]);
+ useEffect(()=>{
+   const sync=()=>{
+     const active=document.fullscreenElement===presentationRef.current;
+     setPresenting(active);
+     if(!active){
+       setExitVisible(false);
+       if(hideExitTimer.current)clearTimeout(hideExitTimer.current);
+       hideExitTimer.current=null;
+     }
+   };
+   document.addEventListener('fullscreenchange',sync);
+   return()=>{
+     document.removeEventListener('fullscreenchange',sync);
+     if(hideExitTimer.current)clearTimeout(hideExitTimer.current);
+   };
+ },[]);
+ const enterPresentation=async()=>{
+   setPresentationError('');
+   try{
+     if(!presentationRef.current?.requestFullscreen)throw new Error('Fullscreen indisponível');
+     await presentationRef.current.requestFullscreen();
+   }catch{
+     setPresentationError('Não foi possível iniciar a apresentação em tela cheia neste navegador.');
+   }
+ };
+ const exitPresentation=async()=>{
+   if(document.fullscreenElement===presentationRef.current){
+     try{await document.exitFullscreen();}catch{
+       setPresentationError('Não foi possível sair da apresentação. Use Esc.');
+     }
+   }
+ };
+
  const [topics,setTopics]=useState<TopicNav[]>([]);
  const [topicsLoading,setTopicsLoading]=useState(true);
  useEffect(()=>{setDark(window.localStorage.getItem('dashboard-theme')==='dark');setThemeReady(true)},[]);
@@ -66,6 +109,8 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
  const callsLive = section === 'chamadas';
  const heading=topic?callCenterTopicLabel(topic):callsLive?'Call Center':active.label;
  const headingDescription=topic?'Dashboards associados a este tópico, conforme permissões.':sectionDescriptions[section];
+ const presentationAvailable=section==='chamadas'||section==='inicio'||Boolean(topic?.dashboards.length);
+
  return <div className={`app-root ${sidebarCollapsed?'sidebar-collapsed':''} ${callsLive?callCenterStyles.shell:''}`}>
   {mobileOpen && <button className="backdrop" aria-label="Fechar menu" onClick={()=>setMobileOpen(false)}/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`} aria-label="Navegação principal">
@@ -100,7 +145,25 @@ export default function AppShell({section,callView='overview',role,topic}:{secti
    <div className="sidebar-bottom"><div className="demo-flag"><ShieldCheck size={17}/><span className="sidebar-detail">{callsLive ? 'Chamadas · dados reais' : 'Ambiente visual de demonstração'}<br/><small>{callsLive ? 'Indicadores agregados do Supabase' : 'Sem conexão com dados reais'}</small></span></div><div className="account"><div className="avatar">AD</div><div className="sidebar-detail"><strong>{callsLive ? 'Usuário autenticado' : 'Usuário'}</strong><small>{callsLive ? 'Acesso autorizado' : 'Sessão autenticada'}</small></div><ChevronDown size={16}/></div></div>
   </aside>
   <div className="main-column"><header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={()=>setMobileOpen(true)}><Menu size={21}/></button><span className="breadcrumb">dashboard_tools</span><span className="crumb-sep">/</span><strong>{heading}</strong></div><div className="top-actions"><span className="demo-pill">{callsLive?'Call Center':'Protótipo · Fase 1'}</span><button className="icon-button" aria-label={dark?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setDark(!dark)}>{dark?<Sun size={19}/>:<Moon size={19}/>}</button><span className="top-avatar">AD</span><LogoutButton/></div></header>
-   <main className="main-content"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div>{!callsLive && <div className="heading-actions"><button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button></div>}</div>
+   <main ref={presentationRef} className={`main-content presentation-surface ${presenting?'presentation-active':''}`}
+      onMouseMove={presenting?showExit:undefined} onTouchStart={presenting?showExit:undefined}>
+    {presenting && <button type="button" className={`presentation-exit ${exitVisible?'visible':''}`}
+      aria-label="Sair da apresentação" title="Sair da apresentação"
+      onMouseEnter={()=>{if(hideExitTimer.current)clearTimeout(hideExitTimer.current);setExitVisible(true);}}
+      onMouseLeave={showExit}
+      onFocus={()=>{if(hideExitTimer.current)clearTimeout(hideExitTimer.current);setExitVisible(true);}}
+      onBlur={showExit}
+      onClick={()=>void exitPresentation()}>
+      <Minimize2 size={17} aria-hidden="true"/> Sair da apresentação
+    </button>}
+    <div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> {callsLive?'ATENDIMENTO':'VISÃO CORPORATIVA'}</div><h1>{heading}</h1><p>{headingDescription}</p></div><div className="heading-actions">
+      {presentationAvailable && <button type="button" className="icon-button presentation-enter" title="Modo de apresentação"
+        aria-label="Iniciar modo de apresentação" onClick={()=>void enterPresentation()}>
+        <Tv size={21} aria-hidden="true"/>
+      </button>}
+      {!callsLive && <button className="outline-button" onClick={()=>window.alert('Esta é uma demonstração visual. A ajuda contextual será implementada em uma fase futura.')}><CircleHelp size={16}/> Sobre a fase 1</button>}
+    </div></div>
+   {presentationError && <p role="alert" className="presentation-error">{presentationError}</p>}
    {topic ? <nav className={`${callCenterStyles.tabs} ${callCenterStyles.dashboardNav}`}
       aria-label={`Dashboards do tópico ${heading}`}>
       {topic.dashboards.map(d=><Link

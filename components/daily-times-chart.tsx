@@ -68,10 +68,10 @@ export default function DailyTimesChart(){
  const active=highlighted!==null?rows?.[highlighted]:null;
  return <section className="panel" style={{padding:20,marginBottom:18}}>
   <div className="panel-head"><div><h2>{tefVerified?'TMA e TME de fila diário':'TMA e espera total diária (TET legado)'}</h2><p>Colunas agrupadas por dia · tempo de atendimento e {tefVerified?'espera em fila (TEF)':'espera total (TET)'} · horário de Brasília</p></div></div>
-  <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+  <div data-presentation-control style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
    {options.map(o=><button key={o.key} type="button" aria-pressed={period===o.key} className={period===o.key?'primary-button':'outline-button'} onClick={()=>setPeriod(o.key)}>{o.label}</button>)}
   </div>
-  {period==='custom'&&<div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12}}>
+  {period==='custom'&&<div data-presentation-control style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:12}}>
    <label>Data inicial <input type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
    <label>Data final <input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
   </div>}

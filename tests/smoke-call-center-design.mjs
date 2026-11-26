@@ -178,6 +178,32 @@ try {
     assert.deepEqual(await cards.evaluateAll(elements => elements.map(el => el.getAttribute('aria-label'))),
       ['TME de fila', 'TMA', 'Taxa de abandono']);
   });
+  await check('shared TV presentation enters fullscreen without losing filters, theme or charts', async () => {
+    const tv=page.getByRole('button',{name:'Iniciar modo de apresentação'});
+    assert.equal(await tv.count(),1,'presentation action is available on Call Center dashboards');
+    const selected=page.getByRole('button',{name:'Hoje',exact:true});
+    assert.equal(await selected.getAttribute('aria-pressed'),'true');
+    const originalTheme=await page.locator('html').getAttribute('data-theme');
+    await tv.click();
+    await page.waitForFunction(()=>document.fullscreenElement?.classList.contains('presentation-surface'));
+    assert.equal(await page.locator('html').getAttribute('data-theme'),originalTheme,'theme must be preserved');
+    assert.equal(await page.getByRole('navigation',{name:'Dashboards do Call Center'}).isVisible(),false);
+    assert.equal(await page.getByRole('region',{name:'Filtros de chamadas'}).isVisible(),false);
+    assert.equal(await page.getByRole('button',{name:'Atualizar',exact:true}).isVisible(),false);
+    assert.equal(await page.getByRole('region',{name:'Resumo de chamadas'}).isVisible(),true);
+    const scroll=await page.locator('main:fullscreen').evaluate(el=>({y:getComputedStyle(el).overflowY,x:getComputedStyle(el).overflowX}));
+    assert.equal(scroll.y,'auto','presentation scroll must remain manual');
+    assert.equal(scroll.x,'auto','horizontal scrolling remains available');
+    await page.mouse.move(250,250);
+    const exit=page.getByRole('button',{name:'Sair da apresentação'});
+    await exit.waitFor({state:'visible'});
+    await exit.click();
+    await page.waitForFunction(()=>document.fullscreenElement===null);
+    assert.equal(await page.getByRole('region',{name:'Filtros de chamadas'}).isVisible(),true);
+    assert.equal(await selected.getAttribute('aria-pressed'),'true','selected period persists after exit');
+    assert.equal(await page.getByRole('button',{name:'Atualizar',exact:true}).isVisible(),true);
+    assert.equal(await page.locator('html').getAttribute('data-theme'),originalTheme);
+  });
   await check('abandonment formula ignores incompatible legacy percentage', async () => {
     assert.match(await page.getByRole('region', { name: 'Taxa de abandono', exact: true }).innerText(), /8,33%/);
   });

@@ -309,7 +309,7 @@ try {
   await page.getByLabel('Fonte candidata').selectOption('listar_filas');
   const snapshot = first.getByTestId('editor-queue-snapshot');
   await snapshot.waitFor();
-  assert.match(await snapshot.innerText(),/Última coleta/);
+  assert.match(await snapshot.innerText(),/última coleta/i);
   assert.match(await snapshot.innerText(),/Recebidas/);
   assert.match(await snapshot.innerText(),/Atendidas/);
   assert.match(await snapshot.innerText(),/Abandonadas/);

@@ -78,6 +78,7 @@ const app = spawn(process.execPath,
   ...process.env, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1',
   SUPABASE_URL: `http://127.0.0.1:${upstream.address().port}`,
   SUPABASE_PUBLISHABLE_KEY: 'visual-test-only', APP_ORIGIN: origin,
+  EDITOR_EVOLUTION_SOURCE_VERIFIED: 'false',
  }, stdio: ['ignore', 'pipe', 'pipe'] }
 );
 let logs = '';
@@ -114,6 +115,26 @@ try {
  const errors = [];
  page.on('pageerror', error => errors.push(error.message));
 
+ await check('evolution route refuses anonymous, manager, cross-origin and unverified source', async () => {
+  const endpoint = origin + '/api/editor/dashboards/' + draftId + '/evolution';
+  const sample = {
+   chart: 'line', period: {kind: 'dynamic', preset: 'last7'}, grouping: 'day',
+   metrics: ['received'], queues: {mode: 'all'}, presentation: 'consolidated',
+   limit: 5, sort: {field: 'name', direction: 'asc'},
+  };
+  const send = async (value, headers = {}) => fetch(endpoint, {
+   method: 'POST', headers: {'Content-Type': 'application/json', ...headers},
+   body: JSON.stringify(value), signal: AbortSignal.timeout(10000),
+  });
+  assert.equal((await send(sample)).status, 401);
+  assert.equal((await send(sample, {Cookie: 'dashboard_tools_access_token=visual-manager'})).status, 403);
+  const admin = {Cookie: 'dashboard_tools_access_token=visual-admin'};
+  assert.equal((await send(sample, {...admin, Origin: 'https://attacker.example',
+   'Sec-Fetch-Site': 'cross-site'})).status, 403);
+  assert.equal((await send({...sample, sql: 'select * from auth.users'}, admin)).status, 400);
+  assert.equal((await send(sample, admin)).status, 503);
+  assert.equal(unexpectedQueries, 0, 'Unverified source must not hit any operational RPC');
+ });
  await check('layout API denies unauthenticated access and forged manager roles', async () => {
   const route = origin + '/api/editor/dashboards/' + draftId + '/layout';
   const base = { method: 'GET', signal: AbortSignal.timeout(10000) };

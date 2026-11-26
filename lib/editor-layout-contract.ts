@@ -1,18 +1,21 @@
 import {
  EDITOR_MAX_BLOCKS, isVisualKind, validLayout, type VisualBlock, type VisualSource,
 } from './editor-visual-layout';
+import { parseQueueViewSettings } from './editor-queue-settings';
 
 /** Layout payload is *configuration*, never operational data or executable SQL. */
 export type EditorLayoutSnapshot = { revision: number; blocks: VisualBlock[] };
 
 const SOURCE_METRICS: Record<Exclude<VisualSource, null>, readonly string[]> = {
- listar_filas: ['received', 'answered', 'waiting_calls', 'abandon_less_30s',
+ listar_filas: ['received', 'answered', 'abandoned', 'waiting_calls', 'abandon_less_30s',
   'abandon_more_30s', 'tma', 'tme'],
  relatorio_chamadas: ['quantidade_chamadas'],
 };
 
-const KEYS = ['id', 'kind', 'title', 'x', 'y', 'w', 'h',
- 'source', 'metric', 'chartOrientation', 'text'].sort();
+const LEGACY_KEYS = ['id', 'kind', 'title', 'x', 'y', 'w', 'h',
+ 'source', 'metric', 'chartOrientation', 'text'].sort().join('|');
+const V2_KEYS = ['id', 'kind', 'title', 'x', 'y', 'w', 'h',
+ 'source', 'metric', 'chartOrientation', 'text', 'queueConfig'].sort().join('|');
 
 /** Strict on purpose: no rogue graph fields, query strings, scripts or user-selected SQL. */
 export function parseEditorBlocks(value: unknown): VisualBlock[] | null {
@@ -21,7 +24,8 @@ export function parseEditorBlocks(value: unknown): VisualBlock[] | null {
  for (const entry of value) {
   if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
   const row = entry as Record<string, unknown>;
-  if (JSON.stringify(Object.keys(row).sort()) !== JSON.stringify(KEYS)) return null;
+  const fieldList = Object.keys(row).sort().join('|');
+  if (fieldList !== LEGACY_KEYS && fieldList !== V2_KEYS) return null;
   if (typeof row.id !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(row.id)
    || !isVisualKind(row.kind)
    || typeof row.title !== 'string' || row.title.length > 80
@@ -35,10 +39,15 @@ export function parseEditorBlocks(value: unknown): VisualBlock[] | null {
   const metric = row.metric as string;
   if (source === null ? metric !== '' : metric !== '' && !SOURCE_METRICS[source].includes(metric)) return null;
   if (row.kind === 'text' && (source !== null || metric !== '')) return null;
+  const hasQueueConfig = fieldList === V2_KEYS;
+  const queueConfig = hasQueueConfig ? parseQueueViewSettings(row.queueConfig) : null;
+  if (hasQueueConfig && (!queueConfig || source !== 'listar_filas'
+    || !['kpi', 'table', 'bar'].includes(String(row.kind)))) return null;
   blocks.push({
    id: row.id, kind: row.kind, title: row.title,
    x: row.x as number, y: row.y as number, w: row.w as number, h: row.h as number,
    source, metric, chartOrientation: row.chartOrientation, text: row.text,
+   ...(queueConfig ? { queueConfig } : {}),
   });
  }
  return validLayout(blocks) ? blocks : null;

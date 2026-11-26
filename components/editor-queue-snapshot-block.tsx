@@ -34,7 +34,10 @@ export default function EditorQueueSnapshotBlock({
  if (snapshot.status === 'error') return <p className={styles.snapshotError} role="alert">
   Não foi possível validar a última coleta. Nenhum número anterior será exibido.
  </p>;
- const {data} = snapshot;
+ if (snapshot.status !== 'ready' || snapshot.data === null) {
+  return <p className={styles.snapshotError} role="alert">Prévia da última coleta indisponível.</p>;
+ }
+ const data = snapshot.data;
  let view: ReturnType<typeof buildEditorSnapshotView>;
  try { view = buildEditorSnapshotView(data.rows,10); }
  catch { return <p className={styles.snapshotError} role="alert">Dados de filas inconsistentes.</p>; }

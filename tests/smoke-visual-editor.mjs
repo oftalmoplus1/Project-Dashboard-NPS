@@ -380,7 +380,7 @@ try {
   denyLayoutWrites = true;
   await page.getByTestId('editor-block').last().click();
   await page.getByLabel('Título do componente').fill('Origem de salvamento negada');
-  await page.getByRole('status').filter({hasText:/Salvamento recusado \\(403\\)/i})
+  await page.getByRole('status').filter({hasText:/Salvamento recusado \(403\)/i})
    .waitFor({timeout:15000});
   assert.equal(layoutWrites,before);
   assert.equal(await page.getByRole('button',{name:'Salvar agora'}).isDisabled(),true);

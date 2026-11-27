@@ -115,3 +115,30 @@ test('strict nested queue settings reject malformed sources and extra keys',()=>
   assert.throws(()=>lib.buildEditorSnapshotView(rows,bad));
  }
 });
+
+
+test('jsonb object key reordering does not change normalized persisted queue settings',()=>{
+ const sent={
+  selection:{mode:'selected',ids:[1,2]},
+  sortBy:'received',direction:'desc',limit:20,
+ };
+ // PostgreSQL jsonb reorders object keys but preserves their meaning.
+ const postgres={
+  limit:20,sortBy:'received',direction:'desc',
+  selection:{ids:[1,2],mode:'selected'},
+ };
+ assert.notEqual(JSON.stringify(sent),JSON.stringify(postgres));
+ const a=settings.parseQueueViewSettings(sent);
+ const b=settings.parseQueueViewSettings(postgres);
+ assert.deepEqual(a,b);
+ assert.equal(JSON.stringify(a),JSON.stringify(b));
+ assert.deepEqual(a,sent);
+ assert.notStrictEqual(a,sent);
+ assert.notStrictEqual(a.selection,sent.selection);
+});
+test('jsonb mode all key order is normalized, without losing new queues',()=>{
+ const pg={sortBy:'answerRate',limit:'all',selection:{mode:'all'},direction:'asc'};
+ const parsed=settings.parseQueueViewSettings(pg);
+ assert.deepEqual(parsed,{selection:{mode:'all'},sortBy:'answerRate',direction:'asc',limit:'all'});
+ assert.equal(lib.buildEditorSnapshotView(rows,parsed).totalQueues,3);
+});

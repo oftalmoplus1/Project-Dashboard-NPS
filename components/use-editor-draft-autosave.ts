@@ -73,6 +73,12 @@ export function useEditorDraftAutosave(
      setStatus(response.status === 409 ? 'conflict' : 'error');
      setMessage(response.status === 409
       ? 'Outro acesso alterou o rascunho. Para proteger as alterações, não faremos novas gravações. Recarregue a página e revise o layout.'
+      : response.status === 403
+      ? 'Salvamento recusado (403). Confira sua sessão administrativa e se o endereço usado no navegador corresponde ao APP_ORIGIN configurado no Coolify. Recarregue antes de tentar novamente.'
+      : response.status === 400
+      ? 'Configuração de componente rejeitada (400). Nenhuma nova gravação será feita. Recarregue e revise os filtros.'
+      : response.status === 502
+      ? 'O servidor não conseguiu confirmar os dados gravados (502). Recarregue para consultar a versão armazenada antes de tentar novamente.'
       : 'Não foi possível confirmar o salvamento. Uma nova tentativa automática poderia sobrescrever dados. Recarregue para consultar a versão do servidor.');
      return;
     }

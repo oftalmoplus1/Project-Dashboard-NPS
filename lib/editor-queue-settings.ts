@@ -29,5 +29,16 @@ export function parseQueueViewSettings(value:unknown): QueueViewSettings|null {
    || selection.ids.some(id=> !Number.isSafeInteger(id) || id < 1 || id > 2147483647)
    || new Set(selection.ids).size!==selection.ids.length) return null;
  } else return null;
- return value as QueueViewSettings;
+ // PostgreSQL jsonb does not preserve object key insertion order. The layout
+ // API compares normalized request/response payloads before acknowledging writes.
+ // Return a canonical representation, not the caller's original object.
+ const normalizedSelection: QueueViewSettings['selection'] = selection.mode === 'all'
+  ? { mode: 'all' }
+  : { mode: 'selected', ids: [...(selection.ids as number[])] };
+ return {
+  selection: normalizedSelection,
+  sortBy: value.sortBy as QueueSortField,
+  direction: value.direction as QueueViewSettings['direction'],
+  limit: value.limit as QueueLimit,
+ };
 }

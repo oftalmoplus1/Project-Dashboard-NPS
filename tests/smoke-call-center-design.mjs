@@ -98,8 +98,9 @@ try {
   const nav = label => menu.getByRole('link', { name: label, exact: true });
   const totals = page.getByRole('region', { name: 'Resumo de chamadas', exact: true });
   await totals.getByText('120', { exact: true }).waitFor();
-  await check('Call Center is a label change; authorized URL is preserved', async () => {
-    assert.equal(await page.getByRole('heading', { name: 'Call Center', exact: true }).count(), 1);
+  await check('dashboard heading stays hidden while Call Center navigation keeps its route', async () => {
+    // The dashboard heading was intentionally removed; sidebar navigation remains.
+    assert.equal(await page.getByRole('heading', { name: 'Call Center', exact: true }).count(), 0);
     assert.equal(await page.getByRole('link', { name: 'Call Center', exact: true }).getAttribute('href'), '/meus-dashboards/relatorios');
   });
   await check('collapsed sidebar restores icons and routes including inactive admin group', async () => {

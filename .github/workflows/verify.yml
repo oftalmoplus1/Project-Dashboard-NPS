@@ -52,10 +52,11 @@ jobs:
           # Required runtime libraries are supplied by the pinned Ubuntu runner.
           # Missing libraries still fail the mandatory browser launch below.
           node "$RUNNER_TEMP/callcenter-browser/node_modules/playwright/cli.js" install chromium --only-shell
-      - name: Validar design responsivo e navegacao com dados sinteticos
-        run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/callcenter-browser/node_modules/playwright/index.mjs" node tests/smoke-call-center-design.mjs
+      # Editor autosave regression runs before unrelated Call Center design tests.
       - name: Validar editor visual com autenticacao simulada
         run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/callcenter-browser/node_modules/playwright/index.mjs" node tests/smoke-visual-editor.mjs
+      - name: Validar design responsivo e navegacao com dados sinteticos
+        run: PLAYWRIGHT_MODULE="$RUNNER_TEMP/callcenter-browser/node_modules/playwright/index.mjs" node tests/smoke-call-center-design.mjs
       - name: Guardar capturas da interface de teste
         if: always()
         uses: actions/upload-artifact@v4

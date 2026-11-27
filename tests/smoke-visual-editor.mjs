@@ -23,6 +23,17 @@ let snapshotCalls = 0;
 let snapshotFailure = false;
 let savedRevision = 0;
 let savedBlocks = [];
+// Simulate PostgreSQL jsonb object normalization: unlike a JS object or the
+// old RPC mock, jsonb is free to return nested keys in a different order.
+function jsonbRoundTrip(value) {
+ if (Array.isArray(value)) return value.map(jsonbRoundTrip);
+ if (value === null || typeof value !== 'object') return value;
+ return Object.fromEntries(Object.entries(value)
+  .sort(([a],[b])=>Buffer.byteLength(a)-Buffer.byteLength(b)
+    || Buffer.compare(Buffer.from(a),Buffer.from(b)))
+  .map(([key,entry])=>[key,jsonbRoundTrip(entry)]));
+}
+
 const upstream = createServer(async (req, res) => {
  const url = new URL(req.url ?? '/', 'http://127.0.0.1');
  const send = (status, value) => {
@@ -62,7 +73,7 @@ const upstream = createServer(async (req, res) => {
   }
   if (body.p_revisao_esperada !== savedRevision) return send(409, { code: '40001' });
   savedRevision++;
-  savedBlocks = body.p_blocos;
+  savedBlocks = jsonbRoundTrip(body.p_blocos);
   layoutWrites++;
   return send(200, [{ revisao: savedRevision, blocos: savedBlocks }]);
  }
@@ -335,6 +346,9 @@ try {
   await page.getByLabel('Ordenar filas por').selectOption('abandoned');
   await page.getByLabel('Direção da ordenação').selectOption('desc');
   await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i}).waitFor({timeout:15000});
+  // A mock that mirrors jsonb key ordering must not cause a false 502.
+  assert.deepEqual(Object.keys(savedBlocks[0].queueConfig),
+   ['limit','sortBy','direction','selection']);
   assert.deepEqual(savedBlocks[0].queueConfig.selection,{mode:'selected',ids:[2]});
   assert.equal(savedBlocks[0].queueConfig.sortBy,'abandoned');
   assert.equal(savedBlocks[0].queueConfig.direction,'desc');

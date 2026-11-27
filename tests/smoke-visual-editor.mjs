@@ -19,6 +19,7 @@ let catalogCalls = 0;
 let unexpectedQueries = 0;
 let layoutReads = 0;
 let layoutWrites = 0;
+let denyLayoutWrites = false;
 let snapshotCalls = 0;
 let snapshotFailure = false;
 let savedRevision = 0;
@@ -64,7 +65,7 @@ const upstream = createServer(async (req, res) => {
   return send(200, [{ revisao: savedRevision, blocos: savedBlocks }]);
  }
  if (url.pathname === '/rest/v1/rpc/dashboard_editor_layout_salvar') {
-  if (token !== 'Bearer visual-admin') return send(403, { code: '42501' });
+  if (token !== 'Bearer visual-admin' || denyLayoutWrites) return send(403, { code: '42501' });
   let raw = '';
   for await (const chunk of req) raw += chunk;
   const body = JSON.parse(raw);
@@ -373,6 +374,20 @@ try {
   assert.equal(await page.getByRole('group',{name:'Filas selecionadas'})
    .getByRole('checkbox',{name:'Fila Zero'}).isChecked(),true);
   assert.equal(unexpectedQueries,0);
+ });
+ await check('403 save denial explains session or public origin and stays locked', async () => {
+  const before = layoutWrites;
+  denyLayoutWrites = true;
+  await page.getByTestId('editor-block').last().click();
+  await page.getByLabel('Título do componente').fill('Origem de salvamento negada');
+  await page.getByRole('status').filter({hasText:/Salvamento recusado \\(403\\)/i})
+   .waitFor({timeout:15000});
+  assert.equal(layoutWrites,before);
+  assert.equal(await page.getByRole('button',{name:'Salvar agora'}).isDisabled(),true);
+  denyLayoutWrites = false;
+  await page.reload();
+  await page.getByRole('status').filter({hasText:/Sem alterações pendentes/i})
+   .waitFor({timeout:15000});
  });
  await check('external save causes 409 and prevents silent overwrites', async () => {
   savedRevision++;
